@@ -1,24 +1,29 @@
+# 不要更改这个配置文件
+context:
+  master_ip: "192.168.0.199"
 clients:
   mac_server:
     name: "mac_server"
     execution_method: ssh
     ssh_config:
-      host: "192.168.0.199"
+      host: "{{ context.master_ip }}"
       port: 22
       username: "li"
       private_key_path: "/Users/li/.ssh/id_rsa"
-      timeout_seconds: 3
+      timeout_seconds: 2 
 
 pipelines:
   - name: "install_docker"
     steps:
       - name: "mock install docker"
         script: "./scripts/mock_install_docker.sh"
+        timeout_seconds: 3
         servers:
           - mac_server
           - mac_server
       - name: "start_docker"
         script: "./scripts/mock_start_docker.sh"
+        timeout_seconds: 3
         servers:
           - mac_server
   - name: "install_docker_compose"

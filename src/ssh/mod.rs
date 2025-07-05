@@ -4,7 +4,9 @@ use std::io::{Read, BufRead, BufReader};
 use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Arc;
-use tokio::sync::mpsc;
+use std::sync::mpsc;
+use std::time::Duration;
+use tokio::sync::mpsc as tokio_mpsc;
 use tracing::info;
 
 use crate::models::{ExecutionResult, SshConfig, OutputEvent, OutputType, OutputCallback};
@@ -28,29 +30,51 @@ impl SshExecutor {
         let script_content = std::fs::read_to_string(&step.script)
             .context(format!("Failed to read script file: {}", step.script))?;
 
-        // 建立TCP连接
-        let tcp = TcpStream::connect(format!("{}:{}", ssh_config.host, ssh_config.port))
+        // 设置连接超时
+        let timeout_seconds = ssh_config.timeout_seconds.unwrap_or(3);
+        let timeout_duration = Duration::from_secs(timeout_seconds);
+        
+        // 建立TCP连接（带严格超时）
+        let tcp = connect_with_timeout(&format!("{}:{}", ssh_config.host, ssh_config.port), timeout_duration)
             .context("Failed to connect to SSH server")?;
+        
+        // 设置TCP连接超时
+        tcp.set_read_timeout(Some(timeout_duration))
+            .context("Failed to set read timeout")?;
+        tcp.set_write_timeout(Some(timeout_duration))
+            .context("Failed to set write timeout")?;
+        tcp.set_nodelay(true)
+            .context("Failed to set TCP nodelay")?;
 
         // 创建SSH会话
         let mut sess = Session::new()
             .context("Failed to create SSH session")?;
         
         sess.set_tcp_stream(tcp);
+        
+        // 设置SSH会话超时（使用步骤级别的超时，如果没有则使用默认值）
+        let session_timeout_seconds = step.timeout_seconds.unwrap_or(30);
+        let session_timeout_duration = Duration::from_secs(session_timeout_seconds);
+        sess.set_timeout(session_timeout_duration.as_millis() as u32);
+        
+        // SSH握手（带超时）
         sess.handshake()
             .context("SSH handshake failed")?;
 
-        // 认证
-        if let Some(ref password) = ssh_config.password {
+        info!("SSH handshake completed, starting authentication");
+
+        // 认证（带超时）
+        let auth_result = if let Some(ref password) = ssh_config.password {
             sess.userauth_password(&ssh_config.username, password)
-                .context("SSH password authentication failed")?;
+                .context("SSH password authentication failed")
         } else if let Some(ref key_path) = ssh_config.private_key_path {
             sess.userauth_pubkey_file(&ssh_config.username, None, Path::new(key_path), None)
-                .context("SSH key authentication failed")?;
+                .context("SSH key authentication failed")
         } else {
-            return Err(anyhow::anyhow!("No authentication method provided"));
-        }
+            Err(anyhow::anyhow!("No authentication method provided"))
+        };
 
+        auth_result?;
         info!("SSH authentication successful");
 
         // 打开远程shell
@@ -67,7 +91,7 @@ impl SshExecutor {
             .context("Failed to send EOF to remote shell")?;
 
         // 创建通道用于实时输出
-        let (tx, mut rx) = mpsc::channel::<OutputEvent>(100);
+        let (tx, mut rx) = tokio_mpsc::channel::<OutputEvent>(100);
         let output_callback = output_callback.map(|cb| Arc::new(cb));
 
         // 在单独的线程中处理实时输出
@@ -167,4 +191,16 @@ impl SshExecutor {
         })
     }
 
+}
+
+/// 工具函数：带超时的TCP连接
+fn connect_with_timeout(addr: &str, timeout: Duration) -> std::io::Result<TcpStream> {
+    let (tx, rx) = mpsc::channel();
+    let addr = addr.to_string();
+    let error_message = format!("connect to {} timeout {} s", addr, timeout.as_secs());
+    std::thread::spawn(move || {
+        let res = TcpStream::connect(addr);
+        let _ = tx.send(res);
+    });
+    rx.recv_timeout(timeout).unwrap_or_else(|_| Err(std::io::Error::new(std::io::ErrorKind::TimedOut, error_message)))
 } 

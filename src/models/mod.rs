@@ -18,6 +18,7 @@ pub struct SshConfig {
     pub username: String,
     pub password: Option<String>,
     pub private_key_path: Option<String>,
+    pub session_timeout_seconds: Option<u64>,
     pub timeout_seconds: Option<u64>,
 }
 
@@ -43,6 +44,7 @@ pub struct Step {
     pub name: String,
     pub script: String,
     pub servers: Vec<String>,
+    pub timeout_seconds: Option<u64>,
 }
 
 /// 流水线配置

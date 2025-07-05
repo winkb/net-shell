@@ -79,7 +79,7 @@ impl RemoteExecutor {
             info!("Starting step: {} on {} servers", step.name, step.servers.len());
             
             // 同一步骤内的所有服务器并发执行
-            let step_results = self.execute_step_with_realtime_output(step, pipeline_name, output_callback.as_ref(), log_callback.as_ref()).await?;
+            let step_results = self.execute_step_with_realtime_output(step, pipeline_name, output_callback.as_ref()).await?;
             
             // 检查步骤是否成功（所有服务器都成功才算成功）
             let step_success = step_results.iter().all(|r| r.execution_result.success);
@@ -220,7 +220,6 @@ impl RemoteExecutor {
         step: &Step,
         pipeline_name: &str,
         output_callback: Option<&OutputCallback>,
-        log_callback: Option<&OutputCallback>
     ) -> Result<Vec<StepExecutionResult>> {
         let start_time = std::time::Instant::now();
         info!("Executing step: {} on {} servers", step.name, step.servers.len());
@@ -290,7 +289,7 @@ impl RemoteExecutor {
 
     /// 执行单个步骤（原有方法，保持兼容性）
     async fn execute_step(&self, step: &Step) -> Result<Vec<StepExecutionResult>> {
-        self.execute_step_with_realtime_output(step, "unknown", None, None).await
+        self.execute_step_with_realtime_output(step, "unknown", None).await
     }
 
     /// 在指定客户端执行shell脚本（支持实时输出）
