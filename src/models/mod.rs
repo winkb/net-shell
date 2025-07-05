@@ -65,6 +65,7 @@ pub struct RemoteExecutionConfig {
 pub enum OutputType {
     Stdout,
     Stderr,
+    Log,
 }
 
 /// 实时输出事件

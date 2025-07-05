@@ -16,6 +16,7 @@ pipelines:
         script: "./scripts/mock_install_docker.sh"
         servers:
           - mac_server
+          - mac_server
       - name: "start_docker"
         script: "./scripts/mock_start_docker.sh"
         servers:

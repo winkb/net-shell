@@ -33,7 +33,6 @@ pipelines:
     steps:
       - name: "test_step"
         script: "echo 'test'"
-        weight: 1
         servers:
           - server1
 default_timeout: 60
@@ -56,29 +55,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 创建执行器
     let executor = RemoteExecutor::from_yaml_file("config.yaml")?;
     
-    println!("=== 远程脚本执行器 ===");
-    println!("配置加载成功，发现 {} 个流水线", executor.get_available_pipelines().len());
-    
     // 定义实时输出回调函数
     let output_callback = Arc::new(|event: models::OutputEvent| {
-        let output_type = match event.output_type {
-            models::OutputType::Stdout => "STDOUT",
-            models::OutputType::Stderr => "STDERR",
-        };
-        
-        println!("[{}] {}@{}@{}: {}", 
-                output_type, 
-                event.pipeline_name,
-                event.step_name,
-                event.server_name, 
-                event.content);
+        match event.output_type {
+            models::OutputType::Stdout => {
+                println!("[STDOUT] {}@{}@{}: {}", 
+                        event.pipeline_name,
+                        event.step_name,
+                        event.server_name, 
+                        event.content);
+            }
+            models::OutputType::Stderr => {
+                eprintln!("[STDERR] {}@{}@{}: {}", 
+                         event.pipeline_name,
+                         event.step_name,
+                         event.server_name, 
+                         event.content);
+            }
+            models::OutputType::Log => {
+                println!("[LOG] {}@{}@{}: {}", 
+                        event.pipeline_name,
+                        event.step_name,
+                        event.server_name, 
+                        event.content);
+            }
+        }
     });
 
     // 执行所有流水线
-    println!("\n=== 开始执行所有流水线 ===");
-    println!("执行模式: 步骤串行执行，同一步骤内服务器并发执行");
-    
-    let results = executor.execute_all_pipelines_with_realtime_output(Some(output_callback)).await?;
+    let results = executor.execute_all_pipelines_with_realtime_output(Some(output_callback.clone()), Some(output_callback)).await?;
     
     // 打印执行结果摘要
     println!("\n=== 执行结果摘要 ===");

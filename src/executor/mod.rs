@@ -8,7 +8,7 @@ use tracing::{error, info};
 use crate::config::ConfigManager;
 use crate::models::{
     ClientConfig, ExecutionMethod, ExecutionResult, PipelineExecutionResult, 
-    RemoteExecutionConfig, Step, StepExecutionResult, OutputCallback
+    RemoteExecutionConfig, Step, StepExecutionResult, OutputCallback, OutputEvent
 };
 use crate::ssh::SshExecutor;
 
@@ -36,7 +36,8 @@ impl RemoteExecutor {
     pub async fn execute_pipeline_with_realtime_output(
         &self, 
         pipeline_name: &str,
-        output_callback: Option<OutputCallback>
+        output_callback: Option<OutputCallback>,
+        log_callback: Option<OutputCallback>
     ) -> Result<PipelineExecutionResult> {
         let pipeline = self.config.pipelines.iter()
             .find(|p| p.name == pipeline_name)
@@ -45,20 +46,60 @@ impl RemoteExecutor {
         let start_time = std::time::Instant::now();
         let mut all_step_results = Vec::new();
 
+        // 发送开始执行流水线的日志
+        if let Some(callback) = &log_callback {
+            let event = OutputEvent {
+                pipeline_name: pipeline.name.clone(),
+                server_name: "system".to_string(),
+                step_name: "pipeline_start".to_string(),
+                output_type: crate::models::OutputType::Log,
+                content: format!("开始执行流水线: {}", pipeline.name),
+                timestamp: std::time::Instant::now(),
+            };
+            callback(event);
+        }
+
         info!("Starting pipeline: {}", pipeline.name);
 
         // 按顺序执行每个步骤（串行）
         for step in &pipeline.steps {
+            // 发送开始执行步骤的日志
+            if let Some(callback) = &log_callback {
+                let event = OutputEvent {
+                    pipeline_name: pipeline.name.clone(),
+                    server_name: "system".to_string(),
+                    step_name: step.name.clone(),
+                    output_type: crate::models::OutputType::Log,
+                    content: format!("开始执行步骤: {} ({} 个服务器)", step.name, step.servers.len()),
+                    timestamp: std::time::Instant::now(),
+                };
+                callback(event);
+            }
+
             info!("Starting step: {} on {} servers", step.name, step.servers.len());
             
             // 同一步骤内的所有服务器并发执行
-            let step_results = self.execute_step_with_realtime_output(step, pipeline_name, output_callback.as_ref()).await?;
+            let step_results = self.execute_step_with_realtime_output(step, pipeline_name, output_callback.as_ref(), log_callback.as_ref()).await?;
             
             // 检查步骤是否成功（所有服务器都成功才算成功）
             let step_success = step_results.iter().all(|r| r.execution_result.success);
             
             // 添加步骤结果
             all_step_results.extend(step_results);
+
+            // 发送步骤完成日志
+            if let Some(callback) = &log_callback {
+                let status = if step_success { "成功" } else { "失败" };
+                let event = OutputEvent {
+                    pipeline_name: pipeline.name.clone(),
+                    server_name: "system".to_string(),
+                    step_name: step.name.clone(),
+                    output_type: crate::models::OutputType::Log,
+                    content: format!("步骤完成: {} ({})", step.name, status),
+                    timestamp: std::time::Instant::now(),
+                };
+                callback(event);
+            }
 
             // 如果步骤失败，可以选择是否继续执行后续步骤
             if !step_success {
@@ -72,6 +113,20 @@ impl RemoteExecutor {
         let total_time = start_time.elapsed().as_millis() as u64;
         let overall_success = all_step_results.iter().all(|r| r.execution_result.success);
 
+        // 发送流水线完成日志
+        if let Some(callback) = &log_callback {
+            let status = if overall_success { "成功" } else { "失败" };
+            let event = OutputEvent {
+                pipeline_name: pipeline.name.clone(),
+                server_name: "system".to_string(),
+                step_name: "pipeline_complete".to_string(),
+                output_type: crate::models::OutputType::Log,
+                content: format!("流水线完成: {} ({}) - 总耗时: {}ms", pipeline.name, status, total_time),
+                timestamp: std::time::Instant::now(),
+            };
+            callback(event);
+        }
+
         Ok(PipelineExecutionResult {
             pipeline_name: pipeline.name.clone(),
             step_results: all_step_results,
@@ -83,15 +138,62 @@ impl RemoteExecutor {
     /// 执行所有流水线（支持实时输出）
     pub async fn execute_all_pipelines_with_realtime_output(
         &self,
-        output_callback: Option<OutputCallback>
+        output_callback: Option<OutputCallback>,
+        log_callback: Option<OutputCallback>
     ) -> Result<Vec<PipelineExecutionResult>> {
         let mut results = Vec::new();
         
+        // 发送开始执行所有流水线的日志
+        if let Some(callback) = &log_callback {
+            let event = OutputEvent {
+                pipeline_name: "system".to_string(),
+                server_name: "system".to_string(),
+                step_name: "execution_start".to_string(),
+                output_type: crate::models::OutputType::Log,
+                content: format!("=== 远程脚本执行器 ==="),
+                timestamp: std::time::Instant::now(),
+            };
+            callback(event);
+            
+            let event = OutputEvent {
+                pipeline_name: "system".to_string(),
+                server_name: "system".to_string(),
+                step_name: "config_load_success".to_string(),
+                output_type: crate::models::OutputType::Log,
+                content: format!("配置加载成功，发现 {} 个流水线", self.config.pipelines.len()),
+                timestamp: std::time::Instant::now(),
+            };
+            callback(event);
+            
+            let event = OutputEvent {
+                pipeline_name: "system".to_string(),
+                server_name: "system".to_string(),
+                step_name: "execution_mode".to_string(),
+                output_type: crate::models::OutputType::Log,
+                content: format!("执行模式: 步骤串行执行，同一步骤内服务器并发执行"),
+                timestamp: std::time::Instant::now(),
+            };
+            callback(event);
+        }
+        
         // 按顺序执行每个流水线（串行）
         for pipeline in &self.config.pipelines {
+            // 发送开始执行流水线的日志
+            if let Some(callback) = &log_callback {
+                let event = OutputEvent {
+                    pipeline_name: pipeline.name.clone(),
+                    server_name: "system".to_string(),
+                    step_name: "pipeline_start".to_string(),
+                    output_type: crate::models::OutputType::Log,
+                    content: format!("开始执行流水线: {}", pipeline.name),
+                    timestamp: std::time::Instant::now(),
+                };
+                callback(event);
+            }
+            
             info!("Starting pipeline: {}", pipeline.name);
             
-            let result = self.execute_pipeline_with_realtime_output(&pipeline.name, output_callback.as_ref().cloned()).await?;
+            let result = self.execute_pipeline_with_realtime_output(&pipeline.name, output_callback.as_ref().cloned(), log_callback.as_ref().cloned()).await?;
             let success = result.overall_success;
             results.push(result);
             
@@ -109,7 +211,7 @@ impl RemoteExecutor {
 
     /// 执行指定的流水线（原有方法，保持兼容性）
     pub async fn execute_pipeline(&self, pipeline_name: &str) -> Result<PipelineExecutionResult> {
-        self.execute_pipeline_with_realtime_output(pipeline_name, None).await
+        self.execute_pipeline_with_realtime_output(pipeline_name, None, None).await
     }
 
     /// 执行单个步骤（支持实时输出）
@@ -117,7 +219,8 @@ impl RemoteExecutor {
         &self, 
         step: &Step,
         pipeline_name: &str,
-        output_callback: Option<&OutputCallback>
+        output_callback: Option<&OutputCallback>,
+        log_callback: Option<&OutputCallback>
     ) -> Result<Vec<StepExecutionResult>> {
         let start_time = std::time::Instant::now();
         info!("Executing step: {} on {} servers", step.name, step.servers.len());
@@ -187,7 +290,7 @@ impl RemoteExecutor {
 
     /// 执行单个步骤（原有方法，保持兼容性）
     async fn execute_step(&self, step: &Step) -> Result<Vec<StepExecutionResult>> {
-        self.execute_step_with_realtime_output(step, "unknown", None).await
+        self.execute_step_with_realtime_output(step, "unknown", None, None).await
     }
 
     /// 在指定客户端执行shell脚本（支持实时输出）
