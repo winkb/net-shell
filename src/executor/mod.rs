@@ -1,12 +1,14 @@
 use anyhow::{Context, Result};
 use futures::future::join_all;
+use std::clone;
 use std::path::Path;
+use std::sync::Arc;
 use tracing::{error, info};
 
 use crate::config::ConfigManager;
 use crate::models::{
     ClientConfig, ExecutionMethod, ExecutionResult, PipelineExecutionResult, 
-    RemoteExecutionConfig, Step, StepExecutionResult
+    RemoteExecutionConfig, Step, StepExecutionResult, OutputCallback
 };
 use crate::ssh::SshExecutor;
 
@@ -30,22 +32,26 @@ impl RemoteExecutor {
         Ok(Self { config })
     }
 
-    /// 执行指定的流水线
-    pub async fn execute_pipeline(&self, pipeline_name: &str) -> Result<PipelineExecutionResult> {
+    /// 执行指定的流水线（支持实时输出）
+    pub async fn execute_pipeline_with_realtime_output(
+        &self, 
+        pipeline_name: &str,
+        output_callback: Option<OutputCallback>
+    ) -> Result<PipelineExecutionResult> {
         let pipeline = self.config.pipelines.iter()
             .find(|p| p.name == pipeline_name)
             .ok_or_else(|| anyhow::anyhow!("Pipeline '{}' not found", pipeline_name))?;
 
         let start_time = std::time::Instant::now();
-        let mut step_results = Vec::new();
+        let mut all_step_results = Vec::new();
 
         info!("Starting pipeline: {}", pipeline.name);
 
         // 按顺序执行每个步骤
         for step in &pipeline.steps {
-            let step_result = self.execute_step(step).await?;
-            let step_success = step_result.overall_success;
-            step_results.push(step_result);
+            let step_results = self.execute_step_with_realtime_output(step, pipeline_name, output_callback.as_ref()).await?;
+            let step_success = step_results.iter().all(|r| r.execution_result.success);
+            all_step_results.extend(step_results);
 
             // 如果步骤失败，可以选择是否继续执行后续步骤
             if !step_success {
@@ -55,22 +61,56 @@ impl RemoteExecutor {
         }
 
         let total_time = start_time.elapsed().as_millis() as u64;
-        let overall_success = step_results.iter().all(|r| r.overall_success);
+        let overall_success = all_step_results.iter().all(|r| r.execution_result.success);
 
         Ok(PipelineExecutionResult {
             pipeline_name: pipeline.name.clone(),
-            step_results,
+            step_results: all_step_results,
             overall_success,
             total_execution_time_ms: total_time,
         })
     }
 
-    /// 执行单个步骤
-    async fn execute_step(&self, step: &Step) -> Result<StepExecutionResult> {
+    /// 执行所有流水线（支持实时输出）
+    pub async fn execute_all_pipelines_with_realtime_output(
+        &self,
+        output_callback: Option<OutputCallback>
+    ) -> Result<Vec<PipelineExecutionResult>> {
+        let mut results = Vec::new();
+        
+        for pipeline in &self.config.pipelines {
+            info!("Starting pipeline: {}", pipeline.name);
+            
+            let result = self.execute_pipeline_with_realtime_output(&pipeline.name, output_callback.as_ref().cloned()).await?;
+            let success = result.overall_success;
+            results.push(result);
+            
+            // 如果流水线失败，可以选择是否继续执行后续流水线
+            if !success {
+                info!("Pipeline '{}' failed, stopping execution", pipeline.name);
+                break;
+            }
+        }
+        
+        Ok(results)
+    }
+
+    /// 执行指定的流水线（原有方法，保持兼容性）
+    pub async fn execute_pipeline(&self, pipeline_name: &str) -> Result<PipelineExecutionResult> {
+        self.execute_pipeline_with_realtime_output(pipeline_name, None).await
+    }
+
+    /// 执行单个步骤（支持实时输出）
+    async fn execute_step_with_realtime_output(
+        &self, 
+        step: &Step,
+        pipeline_name: &str,
+        output_callback: Option<&OutputCallback>
+    ) -> Result<Vec<StepExecutionResult>> {
         let start_time = std::time::Instant::now();
         info!("Executing step: {} on {} servers", step.name, step.servers.len());
 
-        let mut server_results = std::collections::HashMap::new();
+        let mut step_results = Vec::new();
         let mut futures = Vec::new();
 
         // 为每个服务器创建执行任务
@@ -82,13 +122,15 @@ impl RemoteExecutor {
             // 克隆必要的数据以避免生命周期问题
             let config = self.config.clone();
             let server_name = server_name.clone();
-            let script = step.script.clone();
             let step_name = step.name.clone();
+            let output_callback = output_callback.cloned();
+            let clone_step = step.clone();
+            let pipeline_name = pipeline_name.to_string();
 
             let future = tokio::spawn(async move {
                 // 创建新的执行器实例
                 let executor = RemoteExecutor { config };
-                match executor.execute_script(&server_name, &script).await {
+                match executor.execute_script_with_realtime_output(&server_name, clone_step, &pipeline_name, output_callback).await {
                     Ok(result) => {
                         info!("Step '{}' on server '{}' completed with exit code: {}", 
                               step_name, server_name, result.exit_code);
@@ -110,7 +152,14 @@ impl RemoteExecutor {
         for result in results {
             match result {
                 Ok(Ok((server_name, execution_result))) => {
-                    server_results.insert(server_name, execution_result);
+                    let success = execution_result.success;
+                    step_results.push(StepExecutionResult {
+                        step_name: step.name.clone(),
+                        server_name,
+                        execution_result,
+                        overall_success: success,
+                        execution_time_ms: start_time.elapsed().as_millis() as u64,
+                    });
                 }
                 Ok(Err(e)) => {
                     return Err(e);
@@ -121,23 +170,26 @@ impl RemoteExecutor {
             }
         }
 
-        let execution_time = start_time.elapsed().as_millis() as u64;
-        let overall_success = server_results.values().all(|r| r.success);
-
-        Ok(StepExecutionResult {
-            step_name: step.name.clone(),
-            server_results,
-            overall_success,
-            execution_time_ms: execution_time,
-        })
+        Ok(step_results)
     }
 
-    /// 在指定客户端执行shell脚本
-    pub async fn execute_script(&self, client_name: &str, script: &str) -> Result<ExecutionResult> {
+    /// 执行单个步骤（原有方法，保持兼容性）
+    async fn execute_step(&self, step: &Step) -> Result<Vec<StepExecutionResult>> {
+        self.execute_step_with_realtime_output(step, "unknown", None).await
+    }
+
+    /// 在指定客户端执行shell脚本（支持实时输出）
+    pub async fn execute_script_with_realtime_output(
+        &self, 
+        client_name: &str, 
+        step: Step,
+        pipeline_name: &str,
+        output_callback: Option<OutputCallback>
+    ) -> Result<ExecutionResult> {
         // 检查脚本文件是否存在
-        let script_path = Path::new(script);
+        let script_path = Path::new(step.script.as_str());
         if !script_path.exists() {
-            return Err(anyhow::anyhow!("Script '{}' not found", script));
+            return Err(anyhow::anyhow!("Script '{}' not found", step.script));
         }
 
         let client_config = self.config
@@ -147,7 +199,7 @@ impl RemoteExecutor {
 
         match client_config.execution_method {
             ExecutionMethod::SSH => {
-                self.execute_script_via_ssh(client_config, script).await
+                self.execute_script_via_ssh_with_realtime_output(client_config, step, client_name, pipeline_name, output_callback).await
             }
             ExecutionMethod::WebSocket => {
                 Err(anyhow::anyhow!("WebSocket execution not implemented yet"))
@@ -155,8 +207,15 @@ impl RemoteExecutor {
         }
     }
 
-    /// 通过SSH执行脚本
-    async fn execute_script_via_ssh(&self, client_config: &ClientConfig, script: &str) -> Result<ExecutionResult> {
+    /// 通过SSH执行脚本（支持实时输出）
+    async fn execute_script_via_ssh_with_realtime_output(
+        &self, 
+        client_config: &ClientConfig, 
+        step: Step,
+        server_name: &str,
+        pipeline_name: &str,
+        output_callback: Option<OutputCallback>
+    ) -> Result<ExecutionResult> {
         let ssh_config = client_config.ssh_config.as_ref()
             .ok_or_else(|| anyhow::anyhow!("SSH configuration not found for client '{}'", client_config.name))?;
 
@@ -164,11 +223,19 @@ impl RemoteExecutor {
 
         // 克隆数据以避免生命周期问题
         let ssh_config = ssh_config.clone();
-        let script_content = script.to_string();
+        let script_content = step.script.to_string();
+        let server_name = server_name.to_string();
+        let pipeline_name = pipeline_name.to_string();
 
         // 在tokio的阻塞线程池中执行SSH操作
         let result = tokio::task::spawn_blocking(move || {
-            SshExecutor::execute_script(&ssh_config, &script_content)
+            SshExecutor::execute_script_with_realtime_output(
+                &server_name, 
+                &ssh_config, 
+                &step,
+                &pipeline_name,
+                output_callback
+            )
         }).await??;
 
         let execution_time = start_time.elapsed().as_millis() as u64;
@@ -177,7 +244,7 @@ impl RemoteExecutor {
             success: result.exit_code == 0,
             stdout: result.stdout,
             stderr: result.stderr,
-            script: script.to_string(),
+            script: script_content,
             exit_code: result.exit_code,
             execution_time_ms: execution_time,
             error_message: result.error_message,

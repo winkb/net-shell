@@ -1,0 +1,1 @@
+echo "mock install docker compose"

@@ -61,6 +61,27 @@ pub struct RemoteExecutionConfig {
     pub default_timeout: Option<u64>,
 }
 
+/// 实时输出类型
+#[derive(Debug, Clone)]
+pub enum OutputType {
+    Stdout,
+    Stderr,
+}
+
+/// 实时输出事件
+#[derive(Debug, Clone)]
+pub struct OutputEvent {
+    pub pipeline_name: String,
+    pub server_name: String,
+    pub step_name: String,
+    pub output_type: OutputType,
+    pub content: String,
+    pub timestamp: std::time::Instant,
+}
+
+/// 输出回调函数类型
+pub type OutputCallback = std::sync::Arc<dyn Fn(OutputEvent) + Send + Sync>;
+
 /// 执行结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExecutionResult {
@@ -77,10 +98,13 @@ pub struct ExecutionResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepExecutionResult {
     pub step_name: String,
-    pub server_results: HashMap<String, ExecutionResult>,
+    pub server_name: String,
+    pub execution_result: ExecutionResult,
     pub overall_success: bool,
     pub execution_time_ms: u64,
 }
+
+
 
 /// 流水线执行结果
 #[derive(Debug, Clone, Serialize, Deserialize)]

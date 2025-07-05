@@ -11,6 +11,14 @@ pipelines:
         weight: 1
         servers:
           - mac_server
+  - name: "install_docker_compose"
+    steps:
+      - name: "mock install docker compose"
+        script: "./scripts/mock_install_docker_compose.sh"
+        weight: 1
+        servers:
+          - mac_server
+
 clients:
   mac_server:
     name: "mac_server"
