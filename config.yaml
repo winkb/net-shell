@@ -1,0 +1,24 @@
+pipelines:
+  - name: "install_docker"
+    steps:
+      - name: "mock install docker"
+        script: "./scripts/mock_install_docker.sh"
+        weight: 1
+        servers:
+          - mac_server
+      - name: "start_docker"
+        script: "./scripts/mock_start_docker.sh"
+        weight: 1
+        servers:
+          - mac_server
+clients:
+  mac_server:
+    name: "mac_server"
+    execution_method: ssh
+    ssh_config:
+      host: "192.168.0.199"
+      port: 22
+      username: "li"
+      private_key_path: "/Users/li/.ssh/id_rsa"
+      timeout_seconds: 3
+default_timeout: 60 
