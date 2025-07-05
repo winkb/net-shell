@@ -24,9 +24,8 @@ impl SshExecutor {
     ) -> Result<ExecutionResult> {
         info!("Connecting to {}:{} as {}", ssh_config.host, ssh_config.port, ssh_config.username);
 
-        let script_path = Path::new(&step.script);
-        // 读取脚本内容
-        let script_content = std::fs::read_to_string(script_path)
+        // 读取本地脚本内容
+        let script_content = std::fs::read_to_string(&step.script)
             .context(format!("Failed to read script file: {}", step.script))?;
 
         // 建立TCP连接
@@ -54,12 +53,18 @@ impl SshExecutor {
 
         info!("SSH authentication successful");
 
-        // 执行命令
+        // 打开远程shell
         let mut channel = sess.channel_session()
             .context("Failed to create SSH channel")?;
+        channel.exec("sh")
+            .context("Failed to exec remote shell")?;
 
-        channel.exec(&script_content)
-            .context("Failed to execute command")?;
+        // 把脚本内容写入远程shell的stdin
+        use std::io::Write;
+        channel.write_all(script_content.as_bytes())
+            .context("Failed to write script to remote shell")?;
+        channel.send_eof()
+            .context("Failed to send EOF to remote shell")?;
 
         // 创建通道用于实时输出
         let (tx, mut rx) = mpsc::channel::<OutputEvent>(100);

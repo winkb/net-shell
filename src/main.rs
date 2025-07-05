@@ -49,27 +49,21 @@ default_timeout: 60
 
 // 主函数用于演示实时输出功能
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化日志
     tracing_subscriber::fmt::init();
 
-    // 读取config.yaml
-    let config = match RemoteExecutor::from_yaml_file("config.yaml") {
-        Ok(config) => config,
-        Err(e) => {
-            eprintln!("Failed to load configuration: {:#?}", e);
-            return;
-        }
-    };
+    // 创建执行器
+    let executor = RemoteExecutor::from_yaml_file("config.yaml")?;
     
-    // 显示可用的流水线
-    println!("Available pipelines: {:?}", config.get_available_pipelines());
+    println!("=== 远程脚本执行器 ===");
+    println!("配置加载成功，发现 {} 个流水线", executor.get_available_pipelines().len());
     
-    // 创建实时输出回调函数
-    let output_callback = Box::new(|event: OutputEvent| {
+    // 定义实时输出回调函数
+    let output_callback = Arc::new(|event: models::OutputEvent| {
         let output_type = match event.output_type {
-            OutputType::Stdout => "STDOUT",
-            OutputType::Stderr => "STDERR",
+            models::OutputType::Stdout => "STDOUT",
+            models::OutputType::Stderr => "STDERR",
         };
         
         println!("[{}] {}@{}@{}: {}", 
@@ -80,43 +74,43 @@ async fn main() {
                 event.content);
     });
 
-    // 执行所有流水线（支持实时输出）
-    let results = config.execute_all_pipelines_with_realtime_output(
-        Some(Arc::new(output_callback))
-    ).await;
-
-
-
-    match results {
-        Ok(pipeline_results) => {
-            println!("\n=== All Pipelines Execution Summary ===");
-            println!("Total pipelines executed: {}", pipeline_results.len());
-            
-            for pipeline_result in pipeline_results {
-                println!("\n--- Pipeline: {} ---", pipeline_result.pipeline_name);
-                println!("Overall success: {}", pipeline_result.overall_success);
-                println!("Total execution time: {}ms", pipeline_result.total_execution_time_ms);
-                
-                for step_result in pipeline_result.step_results {
-                    println!("  Step: {}", step_result.step_name);
-                    println!("  Server: {}", step_result.server_name);
-                    println!("  Step success: {}", step_result.overall_success);
-                    println!("  Step execution time: {}ms", step_result.execution_time_ms);
-                    println!("  Script: {}", step_result.execution_result.script);
-                    println!("  Exit code: {}", step_result.execution_result.exit_code);
-                    println!("  Success: {}", step_result.execution_result.success);
-                    
-                    if !step_result.execution_result.stdout.is_empty() {
-                        println!("  Final stdout: {}", step_result.execution_result.stdout.trim());
-                    }
-                    if !step_result.execution_result.stderr.is_empty() {
-                        println!("  Final stderr: {}", step_result.execution_result.stderr.trim());
-                    }
-                }
-            }
-        },
-        Err(e) => {
-            println!("Pipeline execution failed: {:#?}", e);
-        },
+    // 执行所有流水线
+    println!("\n=== 开始执行所有流水线 ===");
+    println!("执行模式: 步骤串行执行，同一步骤内服务器并发执行");
+    
+    let results = executor.execute_all_pipelines_with_realtime_output(Some(output_callback)).await?;
+    
+    // 打印执行结果摘要
+    println!("\n=== 执行结果摘要 ===");
+    for result in &results {
+        println!("\n流水线: {} ({})", result.pipeline_name, 
+                 if result.overall_success { "成功" } else { "失败" });
+        println!("总执行时间: {}ms", result.total_execution_time_ms);
+        println!("步骤结果:");
+        
+        for step_result in &result.step_results {
+            let status = if step_result.execution_result.success { "✅" } else { "❌" };
+            println!("  {} [{}:{}] {} - {}ms", 
+                     status,
+                     result.pipeline_name,
+                     step_result.step_name,
+                     step_result.server_name,
+                     step_result.execution_result.execution_time_ms);
+        }
     }
+    
+    // 统计总体结果
+    let total_pipelines = results.len();
+    let successful_pipelines = results.iter().filter(|r| r.overall_success).count();
+    let total_steps = results.iter().map(|r| r.step_results.len()).sum::<usize>();
+    let successful_steps = results.iter()
+        .flat_map(|r| &r.step_results)
+        .filter(|r| r.execution_result.success)
+        .count();
+    
+    println!("\n=== 总体统计 ===");
+    println!("流水线: {}/{} 成功", successful_pipelines, total_pipelines);
+    println!("步骤: {}/{} 成功", successful_steps, total_steps);
+    
+    Ok(())
 } 

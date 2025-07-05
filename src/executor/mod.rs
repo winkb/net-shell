@@ -47,10 +47,17 @@ impl RemoteExecutor {
 
         info!("Starting pipeline: {}", pipeline.name);
 
-        // 按顺序执行每个步骤
+        // 按顺序执行每个步骤（串行）
         for step in &pipeline.steps {
+            info!("Starting step: {} on {} servers", step.name, step.servers.len());
+            
+            // 同一步骤内的所有服务器并发执行
             let step_results = self.execute_step_with_realtime_output(step, pipeline_name, output_callback.as_ref()).await?;
+            
+            // 检查步骤是否成功（所有服务器都成功才算成功）
             let step_success = step_results.iter().all(|r| r.execution_result.success);
+            
+            // 添加步骤结果
             all_step_results.extend(step_results);
 
             // 如果步骤失败，可以选择是否继续执行后续步骤
@@ -58,6 +65,8 @@ impl RemoteExecutor {
                 info!("Step '{}' failed, stopping pipeline", step.name);
                 break;
             }
+            
+            info!("Step '{}' completed successfully", step.name);
         }
 
         let total_time = start_time.elapsed().as_millis() as u64;
@@ -78,6 +87,7 @@ impl RemoteExecutor {
     ) -> Result<Vec<PipelineExecutionResult>> {
         let mut results = Vec::new();
         
+        // 按顺序执行每个流水线（串行）
         for pipeline in &self.config.pipelines {
             info!("Starting pipeline: {}", pipeline.name);
             
@@ -90,6 +100,8 @@ impl RemoteExecutor {
                 info!("Pipeline '{}' failed, stopping execution", pipeline.name);
                 break;
             }
+            
+            info!("Pipeline '{}' completed successfully", pipeline.name);
         }
         
         Ok(results)

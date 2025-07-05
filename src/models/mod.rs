@@ -42,7 +42,6 @@ pub struct ClientConfig {
 pub struct Step {
     pub name: String,
     pub script: String,
-    pub weight: u32,
     pub servers: Vec<String>,
 }
 
@@ -103,8 +102,6 @@ pub struct StepExecutionResult {
     pub overall_success: bool,
     pub execution_time_ms: u64,
 }
-
-
 
 /// 流水线执行结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
