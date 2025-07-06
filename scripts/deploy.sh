@@ -8,7 +8,7 @@ echo "master ip: {{ master_ip }} os_version: {{ os_version }}, os_version_num: {
 
 echo "Deploying application: $APP_NAME version $VERSION"
 echo "Creating deployment directory..."
-mkdir -p /tmp/deployments/$APP_NAME-$VERSION
-echo "Deployed to: /tmp/deployments/$APP_NAME-$VERSION"
+mkdir -p /tmp/deployments/$APP_NAME
+echo "Deployed to: /tmp/deployments/$APP_NAME"
 echo "Status: SUCCESS"
 echo "Deployment completed at $(date)" 

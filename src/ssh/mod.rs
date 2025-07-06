@@ -136,7 +136,7 @@ impl SshExecutor {
             let event = OutputEvent {
                 pipeline_name: pipeline_name.clone(),
                 server_name: server_name.clone(),
-                step: Some(step.clone()), // 传递完整的Step对象
+                step: step.clone(), // 传递完整的Step对象
                 output_type: OutputType::Stdout,
                 content: content.trim().to_string(),
                 timestamp: std::time::Instant::now(),
@@ -163,7 +163,7 @@ impl SshExecutor {
             let event = OutputEvent {
                 pipeline_name: pipeline_name.clone(),
                 server_name: server_name.clone(),
-                step: Some(step.clone()), // 传递完整的Step对象
+                step: step.clone(), // 传递完整的Step对象
                 output_type: OutputType::Stderr,
                 content: content.trim().to_string(),
                 timestamp: std::time::Instant::now(),

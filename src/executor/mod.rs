@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use futures::future::join_all;
+use std::collections::HashMap;
 use std::path::Path;
 use tracing::{error, info};
 
@@ -18,27 +19,40 @@ pub struct RemoteExecutor {
 }
 
 impl RemoteExecutor {
+
+
     /// 从YAML文件创建执行器
-    pub fn from_yaml_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+    pub fn from_yaml_file<P: AsRef<Path>>(path: P, variables: Option<HashMap<String, String>>) -> Result<Self> {
         let content = std::fs::read_to_string(path)
             .context("Failed to read YAML configuration file")?;
         
-        Self::from_yaml_str(&content)
+        Self::from_yaml_str(&content, variables)
     }
 
     /// 从YAML字符串创建执行器
-    pub fn from_yaml_str(yaml_content: &str) -> Result<Self> {
+    pub fn from_yaml_str(yaml_content: &str, variables: Option<HashMap<String, String>>) -> Result<Self> {
         // 提取初始变量
         let initial_variables = ConfigManager::extract_initial_variables(yaml_content)?;
+
+        // 合并变量
+        let mut all_variables = HashMap::new();
+
+        if let Some(v) = initial_variables {
+            all_variables.extend(v);
+        }
+
+        if let Some(v) = variables {
+            all_variables.extend(v);
+        }
         
         // 创建变量管理器
-        let variable_manager = VariableManager::new(initial_variables);
+        let variable_manager = VariableManager::new(Some(all_variables));
         
         // 应用变量替换解析配置
         let config = ConfigManager::from_yaml_str_with_variables(yaml_content, &variable_manager)?;
         ConfigManager::validate_config(&config)?;
         
-        Ok(Self { config, variable_manager })
+        Ok(Self { config, variable_manager})
     }
 
     /// 执行指定的流水线（支持实时输出）
@@ -63,7 +77,7 @@ impl RemoteExecutor {
             let event = OutputEvent {
                 pipeline_name: pipeline.name.clone(),
                 server_name: "system".to_string(),
-                step: None, // 流水线开始事件没有具体的步骤
+                step: Step::default(), // 流水线开始事件没有具体的步骤
                 output_type: crate::models::OutputType::Log,
                 content: format!("开始执行流水线: {}", pipeline.name),
                 timestamp: std::time::Instant::now(),
@@ -85,7 +99,7 @@ impl RemoteExecutor {
                 let event = OutputEvent {
                     pipeline_name: pipeline.name.clone(),
                     server_name: "system".to_string(),
-                    step: Some(step.clone()), // 传递完整的Step对象
+                    step: step.clone(), // 传递完整的Step对象
                     output_type: crate::models::OutputType::Log,
                     content: format!("开始执行步骤: {} ({} 个服务器)", step.name, step.servers.len()),
                     timestamp: std::time::Instant::now(),
@@ -111,7 +125,7 @@ impl RemoteExecutor {
                 let event = OutputEvent {
                     pipeline_name: pipeline.name.clone(),
                     server_name: "system".to_string(),
-                    step: Some(step.clone()), // 传递完整的Step对象
+                    step: step.clone(), // 传递完整的Step对象
                     output_type: crate::models::OutputType::Log,
                     content: format!("步骤完成: {} ({})", step.name, status),
                     timestamp: std::time::Instant::now(),
@@ -138,7 +152,7 @@ impl RemoteExecutor {
             let event = OutputEvent {
                 pipeline_name: pipeline.name.clone(),
                 server_name: "system".to_string(),
-                step: None, // 流水线完成事件没有具体的步骤
+                step: Step::default(), // 流水线完成事件没有具体的步骤
                 output_type: crate::models::OutputType::Log,
                 content: format!("流水线完成: {} ({}) - 总耗时: {}ms", pipeline.name, status, total_time),
                 timestamp: std::time::Instant::now(),
@@ -168,7 +182,7 @@ impl RemoteExecutor {
             let event = OutputEvent {
                 pipeline_name: "system".to_string(),
                 server_name: "system".to_string(),
-                step: None, // 系统级别事件没有具体步骤
+                step: Step::default(), // 系统级别事件没有具体步骤
                 output_type: crate::models::OutputType::Log,
                 content: format!("=== 远程脚本执行器 ==="),
                 timestamp: std::time::Instant::now(),
@@ -179,7 +193,7 @@ impl RemoteExecutor {
             let event = OutputEvent {
                 pipeline_name: "system".to_string(),
                 server_name: "system".to_string(),
-                step: None, // 系统级别事件没有具体步骤
+                step: Step::default(), // 系统级别事件没有具体步骤
                 output_type: crate::models::OutputType::Log,
                 content: format!("配置加载成功，发现 {} 个流水线", self.config.pipelines.len()),
                 timestamp: std::time::Instant::now(),
@@ -190,7 +204,7 @@ impl RemoteExecutor {
             let event = OutputEvent {
                 pipeline_name: "system".to_string(),
                 server_name: "system".to_string(),
-                step: None, // 系统级别事件没有具体步骤
+                step: Step::default(), // 系统级别事件没有具体步骤
                 output_type: crate::models::OutputType::Log,
                 content: format!("执行模式: 步骤串行执行，同一步骤内服务器并发执行"),
                 timestamp: std::time::Instant::now(),
@@ -206,7 +220,7 @@ impl RemoteExecutor {
                 let event = OutputEvent {
                     pipeline_name: pipeline.name.clone(),
                     server_name: "system".to_string(),
-                    step: None, // 流水线开始事件没有具体的步骤
+                    step: Step::default(), // 流水线开始事件没有具体的步骤
                     output_type: crate::models::OutputType::Log,
                     content: format!("开始执行流水线: {}", pipeline.name),
                     timestamp: std::time::Instant::now(),

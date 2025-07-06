@@ -10,7 +10,7 @@ pub use executor::RemoteExecutor;
 pub use models::*;
 
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tracing_subscriber;
 
 #[cfg(test)]
@@ -40,7 +40,7 @@ pipelines:
 default_timeout: 60
 "#;
 
-        let executor = RemoteExecutor::from_yaml_str(yaml_content).unwrap();
+        let executor = RemoteExecutor::from_yaml_str(yaml_content, None).unwrap();
         assert_eq!(executor.get_available_clients().len(), 1);
         assert!(executor.client_exists("server1"));
         assert_eq!(executor.get_available_pipelines().len(), 1);
@@ -54,35 +54,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化日志
     tracing_subscriber::fmt::init();
 
+    let mut variables = HashMap::new();
+
+    variables.insert("new_master_ip".to_string(), "192.168.1.100".to_string());
+
     // 创建执行器
-    let executor = RemoteExecutor::from_yaml_file("config.yaml")?;
+    let executor = RemoteExecutor::from_yaml_file("config.yaml", Some(variables))?;
     
     // 定义实时输出回调函数
     let output_callback = Arc::new(|event: models::OutputEvent| {
-        let step_info = match &event.step {
-            Some(step) => format!("{}", step.name),
-            None => "system".to_string(),
-        };
+        let step = event.step.clone();
         
         match event.output_type {
             models::OutputType::Stdout => {
                 println!("[STDOUT] {}@{}@{}: {}", 
                         event.pipeline_name,
-                        step_info,
+                        step.name,
                         event.server_name, 
                         event.content);
             }
             models::OutputType::Stderr => {
-                eprintln!("[STDERR] {}@{}@{}: {}", 
+                eprintln!("[STDERR] {}@{}@{}: {}, script:[{}]", 
                          event.pipeline_name,
-                         step_info,
+                         step.name,
                          event.server_name, 
-                         event.content);
+                         event.content,
+                         event.step.script
+                        );
             }
             models::OutputType::Log => {
                 println!("[LOG] {}@{}@{}: {}", 
                         event.pipeline_name,
-                        step_info,
+                        step.name,
                         event.server_name, 
                         event.content);
             }
@@ -94,10 +97,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         
         // 显示步骤详细信息（如果有）
-        if let Some(step) = &event.step {
             println!("[STEP] Step details: name={}, script={}, servers={:?}, timeout={:?}, extract_rules={:?}", 
                     step.name, step.script, step.servers, step.timeout_seconds, step.extract);
-        }
     });
 
     // 执行所有流水线

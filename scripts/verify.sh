@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEPLOY_PATH={{ deploy_path }}
+DEPLOY_PATH="{{ deploy_path }}"
 
 echo "Verifying deployment at: $DEPLOY_PATH"
 if [ -d "$DEPLOY_PATH" ]; then

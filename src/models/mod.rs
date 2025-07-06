@@ -54,7 +54,7 @@ fn default_cascade() -> bool {
 }
 
 /// 步骤配置
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Step {
     pub name: String,
     pub script: String,
@@ -92,7 +92,7 @@ pub enum OutputType {
 pub struct OutputEvent {
     pub pipeline_name: String,
     pub server_name: String,
-    pub step: Option<Step>, // 替换step_name为完整的Step对象，方便排错
+    pub step: Step, // 替换step_name为完整的Step对象，方便排错
     pub output_type: OutputType,
     pub content: String,
     pub timestamp: std::time::Instant,
