@@ -3,10 +3,12 @@ pub mod config;
 pub mod executor;
 pub mod models;
 pub mod ssh;
+pub mod vars;
 
 // 重新导出主要类型，方便外部使用
 pub use executor::RemoteExecutor;
 pub use models::*;
+
 
 use std::sync::Arc;
 use tracing_subscriber;
@@ -57,28 +59,44 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     
     // 定义实时输出回调函数
     let output_callback = Arc::new(|event: models::OutputEvent| {
+        let step_info = match &event.step {
+            Some(step) => format!("{}", step.name),
+            None => "system".to_string(),
+        };
+        
         match event.output_type {
             models::OutputType::Stdout => {
                 println!("[STDOUT] {}@{}@{}: {}", 
                         event.pipeline_name,
-                        event.step_name,
+                        step_info,
                         event.server_name, 
                         event.content);
             }
             models::OutputType::Stderr => {
                 eprintln!("[STDERR] {}@{}@{}: {}", 
                          event.pipeline_name,
-                         event.step_name,
+                         step_info,
                          event.server_name, 
                          event.content);
             }
             models::OutputType::Log => {
                 println!("[LOG] {}@{}@{}: {}", 
                         event.pipeline_name,
-                        event.step_name,
+                        step_info,
                         event.server_name, 
                         event.content);
             }
+        }
+        
+        // 显示当前变量状态
+        if !event.variables.is_empty() {
+            println!("[VARS] Current variables: {:?}", event.variables);
+        }
+        
+        // 显示步骤详细信息（如果有）
+        if let Some(step) = &event.step {
+            println!("[STEP] Step details: name={}, script={}, servers={:?}, timeout={:?}, extract_rules={:?}", 
+                    step.name, step.script, step.servers, step.timeout_seconds, step.extract);
         }
     });
 

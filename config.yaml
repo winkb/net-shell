@@ -1,36 +1,105 @@
 # 不要更改这个配置文件
-context:
+variables:
   master_ip: "192.168.0.199"
+  app_name: "myapp"
+  version: "1.0.0"
+
 clients:
   mac_server:
     name: "mac_server"
     execution_method: ssh
     ssh_config:
-      host: "{{ context.master_ip }}"
+      host: "{{ master_ip }}"
       port: 22
       username: "li"
       private_key_path: "/Users/li/.ssh/id_rsa"
       timeout_seconds: 2 
 
 pipelines:
+  - name: "deploy_app"
+    steps:
+      - name: "get_system_info"
+        script: "/Users/li/data/rust/ai-demo/scripts/get_system_info.sh"
+        timeout_seconds: 5
+        servers:
+          - mac_server
+        extract:
+          - name: "os_version"
+            pattern: "OS Version: (.+)"
+            source: "stdout"
+          - name: "hostname"
+            pattern: "Hostname: (.+)"
+            source: "stdout"
+          - name: "current_user"
+            pattern: "Current user: (.+)"
+            source: "stdout"
+      
+      - name: "deploy_application"
+        script: "/Users/li/data/rust/ai-demo/scripts/deploy.sh"
+        timeout_seconds: 10
+        servers:
+          - mac_server
+        extract:
+          - name: "deploy_path"
+            pattern: "Deployed to: (.+)"
+            source: "stdout"
+          - name: "deploy_status"
+            pattern: "Status: (.+)"
+            source: "stdout"
+      
+      - name: "verify_deployment"
+        script: "/Users/li/data/rust/ai-demo/scripts/verify.sh"
+        timeout_seconds: 5
+        servers:
+          - mac_server
+        extract:
+          - name: "service_status"
+            pattern: "Service Status: (.+)"
+            source: "stdout"
+          - name: "verification_time"
+            pattern: "Verification completed at (.+)"
+            source: "stdout"
+
   - name: "install_docker"
     steps:
       - name: "mock install docker"
-        script: "./scripts/mock_install_docker.sh"
+        script: "/Users/li/data/rust/ai-demo/scripts/mock_install_docker.sh"
         timeout_seconds: 3
         servers:
           - mac_server
-          - mac_server
+        extract:
+          - name: "docker_version"
+            pattern: "Docker version: (.+)"
+            source: "stdout"
+          - name: "install_path"
+            pattern: "Installed to: (.+)"
+            source: "stdout"
+      
       - name: "start_docker"
-        script: "./scripts/mock_start_docker.sh"
+        script: "/Users/li/data/rust/ai-demo/scripts/mock_start_docker.sh"
         timeout_seconds: 3
         servers:
           - mac_server
+        extract:
+          - name: "docker_status"
+            pattern: "Docker status: (.+)"
+            source: "stdout"
+          - name: "docker_pid"
+            pattern: "Docker PID: (\\d+)"
+            source: "stdout"
+
   - name: "install_docker_compose"
     steps:
       - name: "mock install docker compose"
-        script: "./scripts/mock_install_docker_compose.sh"
+        script: "/Users/li/data/rust/ai-demo/scripts/mock_install_docker_compose.sh"
         servers:
           - mac_server
+        extract:
+          - name: "compose_version"
+            pattern: "Docker Compose version: (.+)"
+            source: "stdout"
+          - name: "compose_path"
+            pattern: "Compose installed to: (.+)"
+            source: "stdout"
 
 default_timeout: 60 

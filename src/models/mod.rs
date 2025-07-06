@@ -38,6 +38,14 @@ pub struct ClientConfig {
     pub websocket_config: Option<WebSocketConfig>,
 }
 
+/// 变量提取规则
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtractRule {
+    pub name: String,
+    pub pattern: String,
+    pub source: String, // "stdout", "stderr", "exit_code"
+}
+
 /// 步骤配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Step {
@@ -45,6 +53,7 @@ pub struct Step {
     pub script: String,
     pub servers: Vec<String>,
     pub timeout_seconds: Option<u64>,
+    pub extract: Option<Vec<ExtractRule>>,
 }
 
 /// 流水线配置
@@ -57,6 +66,7 @@ pub struct Pipeline {
 /// 全局配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RemoteExecutionConfig {
+    pub variables: Option<HashMap<String, String>>,
     pub clients: HashMap<String, ClientConfig>,
     pub pipelines: Vec<Pipeline>,
     pub default_timeout: Option<u64>,
@@ -75,10 +85,11 @@ pub enum OutputType {
 pub struct OutputEvent {
     pub pipeline_name: String,
     pub server_name: String,
-    pub step_name: String,
+    pub step: Option<Step>, // 替换step_name为完整的Step对象，方便排错
     pub output_type: OutputType,
     pub content: String,
     pub timestamp: std::time::Instant,
+    pub variables: HashMap<String, String>, // 添加当前变量上下文
 }
 
 /// 输出回调函数类型

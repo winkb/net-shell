@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use ssh2::Session;
-use std::io::{Read, BufRead, BufReader};
+use std::io::{BufRead, BufReader};
 use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Arc;
@@ -11,6 +11,8 @@ use tracing::info;
 
 use crate::models::{ExecutionResult, SshConfig, OutputEvent, OutputType, OutputCallback};
 use crate::Step;
+use crate::vars::VariableManager;
+use crate::ExtractRule;
 
 /// SSH执行器
 pub struct SshExecutor;
@@ -22,16 +24,24 @@ impl SshExecutor {
         ssh_config: &SshConfig, 
         step: &Step,
         pipeline_name: &str,
-        output_callback: Option<OutputCallback>
+        step_name: &str,
+        output_callback: Option<OutputCallback>,
+        mut variable_manager: VariableManager,
+        extract_rules: Option<Vec<ExtractRule>>
     ) -> Result<ExecutionResult> {
         info!("Connecting to {}:{} as {}", ssh_config.host, ssh_config.port, ssh_config.username);
 
-        // 读取本地脚本内容
-        let script_content = std::fs::read_to_string(&step.script)
-            .context(format!("Failed to read script file: {}", step.script))?;
+        // 只用step.script作为脚本路径，不做参数处理
+        let script_path = step.script.as_str();
+        // 读取本地脚本内容并替换变量
+        let script_content = std::fs::read_to_string(script_path)
+            .context(format!("Failed to read script file: {}", script_path))?;
+        let script_content = variable_manager.replace_variables(&script_content);
 
         // 设置连接超时
-        let timeout_seconds = ssh_config.timeout_seconds.unwrap_or(3);
+        let timeout_seconds = step.timeout_seconds
+            .or(ssh_config.timeout_seconds)
+            .unwrap_or(3);
         let timeout_duration = Duration::from_secs(timeout_seconds);
         
         // 建立TCP连接（带严格超时）
@@ -96,7 +106,7 @@ impl SshExecutor {
 
         // 在单独的线程中处理实时输出
         let server_name = server_name.to_string();
-        let step_name = step.name.to_string();
+        let _step_name = step_name.to_string();
         let pipeline_name = pipeline_name.to_string();
         let output_callback_clone = output_callback.clone();
         
@@ -126,10 +136,11 @@ impl SshExecutor {
             let event = OutputEvent {
                 pipeline_name: pipeline_name.clone(),
                 server_name: server_name.clone(),
-                step_name: step_name.clone(),
+                step: Some(step.clone()), // 传递完整的Step对象
                 output_type: OutputType::Stdout,
                 content: content.trim().to_string(),
                 timestamp: std::time::Instant::now(),
+                variables: variable_manager.get_variables().clone(),
             };
             
             if tx.blocking_send(event).is_err() {
@@ -152,10 +163,11 @@ impl SshExecutor {
             let event = OutputEvent {
                 pipeline_name: pipeline_name.clone(),
                 server_name: server_name.clone(),
-                step_name: step_name.clone(),
+                step: Some(step.clone()), // 传递完整的Step对象
                 output_type: OutputType::Stderr,
                 content: content.trim().to_string(),
                 timestamp: std::time::Instant::now(),
+                variables: variable_manager.get_variables().clone(),
             };
             
             if tx.blocking_send(event).is_err() {
@@ -180,7 +192,8 @@ impl SshExecutor {
         let execution_time = start_time.elapsed().as_millis() as u64;
         info!("SSH command executed with exit code: {}", exit_code);
 
-        Ok(ExecutionResult {
+        // 创建执行结果
+        let execution_result = ExecutionResult {
             success: exit_code == 0,
             stdout,
             stderr,
@@ -188,7 +201,16 @@ impl SshExecutor {
             exit_code,
             execution_time_ms: execution_time,
             error_message: None,
-        })
+        };
+
+        // 提取变量
+        if let Some(rules) = extract_rules {
+            if let Err(e) = variable_manager.extract_variables(&rules, &execution_result) {
+                info!("Failed to extract variables: {}", e);
+            }
+        }
+
+        Ok(execution_result)
     }
 
 }
