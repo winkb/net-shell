@@ -42,8 +42,15 @@ pub struct ClientConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractRule {
     pub name: String,
-    pub pattern: String,
+    pub patterns: Vec<String>, // 支持多个正则表达式，按顺序尝试直到匹配成功
     pub source: String, // "stdout", "stderr", "exit_code"
+    #[serde(default = "default_cascade")]
+    pub cascade: bool, // 是否启用级联模式：前一个正则的匹配结果作为下一个正则的输入，默认为true
+}
+
+/// 默认级联模式为true
+fn default_cascade() -> bool {
+    true
 }
 
 /// 步骤配置

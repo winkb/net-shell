@@ -1,0 +1,54 @@
+# 演示级联模式变量提取的配置文件
+variables:
+  master_ip: "192.168.0.199"
+  app_name: "myapp"
+  version: "1.0.0"
+
+clients:
+  mac_server:
+    name: "mac_server"
+    execution_method: ssh
+    ssh_config:
+      host: "{{ master_ip }}"
+      port: 22
+      username: "li"
+      private_key_path: "/Users/li/.ssh/id_rsa"
+      timeout_seconds: 2 
+
+pipelines:
+  - name: "cascade_demo"
+    steps:
+      - name: "complex_extraction"
+        script: "/Users/li/data/rust/ai-demo/scripts/complex_extraction_demo.sh"
+        timeout_seconds: 5
+        servers:
+          - mac_server
+        extract:
+          # 示例1：从复杂JSON中提取版本号（默认级联模式）
+          - name: "app_version"
+            patterns: 
+              - "version\":\\s*\"([^\"]+)\""  # 第一步：匹配version字段
+              - "\\d+\\.\\d+\\.\\d+"         # 第二步：从version值中提取版本号格式
+            source: "stdout"
+            
+          # 示例2：从多行输出中提取特定信息（默认级联模式）
+          - name: "process_info"
+            patterns:
+              - "Process:\\s*(.+)"           # 第一步：匹配Process行
+              - "PID:\\s*(\\d+)"             # 第二步：从Process行中提取PID
+            source: "stdout"
+            
+          # 示例3：从嵌套结构中提取数据（默认级联模式）
+          - name: "nested_data"
+            patterns:
+              - "data\":\\s*\\{([^}]+)\\}"   # 第一步：匹配data对象
+              - "value\":\\s*\"([^\"]+)\""   # 第二步：从data对象中提取value
+            source: "stdout"
+            
+          # 示例4：普通模式（非级联）
+          - name: "simple_extract"
+            patterns: ["Simple: (.+)"]
+            source: "stdout"
+            cascade: false  # 显式设置为false，禁用级联模式
+
+default_timeout: 60 

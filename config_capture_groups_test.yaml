@@ -1,0 +1,43 @@
+variables:
+  master_ip: "192.168.0.199"
+
+clients:
+  mac_server:
+    name: "mac_server"
+    execution_method: ssh
+    ssh_config:
+      host: "{{ master_ip }}"
+      port: 22
+      username: "li"
+      private_key_path: "/Users/li/.ssh/id_rsa"
+      timeout_seconds: 2 
+
+pipelines:
+  - name: "test_capture_groups"
+    steps:
+      - name: "test_extraction"
+        script: "/Users/li/data/rust/ai-demo/scripts/test_capture_groups.sh"
+        timeout_seconds: 5
+        servers:
+          - mac_server
+        extract:
+          - name: "os_version"
+            patterns: ["OS Version: \\((.+)\\)"]
+            source: "stdout"
+          - name: "user_info"
+            patterns: ["User: \\((.+?)\\)"]
+            source: "stdout"
+          - name: "path_info"
+            patterns: ["Path: \\((.+?)\\)"]
+            source: "stdout"
+          - name: "status_info"
+            patterns: ["Status: (.+)"]
+            source: "stdout"
+          - name: "empty_value"
+            patterns: ["Empty: \\((.+?)\\)"]
+            source: "stdout"
+          - name: "config_info"
+            patterns: ["Config: \\((.+?)\\)"]
+            source: "stdout"
+
+default_timeout: 60 

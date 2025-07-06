@@ -24,14 +24,19 @@ pipelines:
         servers:
           - mac_server
         extract:
+          - name: "os_version_num"
+            patterns: 
+              - "OS Version: (.+)"
+              - "(\\d+\\.\\d+\\.\\d+)"
+            source: "stdout"
           - name: "os_version"
-            pattern: "OS Version: (.+)"
+            patterns: ["OS Version: (.+)"]
             source: "stdout"
           - name: "hostname"
-            pattern: "Hostname: (.+)"
+            patterns: ["Hostname: (.+)"]
             source: "stdout"
           - name: "current_user"
-            pattern: "Current user: (.+)"
+            patterns: ["Current user: (.+)"]
             source: "stdout"
       
       - name: "deploy_application"
@@ -41,10 +46,10 @@ pipelines:
           - mac_server
         extract:
           - name: "deploy_path"
-            pattern: "Deployed to: (.+)"
+            patterns: ["Deployed to: (.+)"]
             source: "stdout"
           - name: "deploy_status"
-            pattern: "Status: (.+)"
+            patterns: ["Status: (.+)"]
             source: "stdout"
       
       - name: "verify_deployment"
@@ -54,10 +59,10 @@ pipelines:
           - mac_server
         extract:
           - name: "service_status"
-            pattern: "Service Status: (.+)"
+            patterns: ["Service Status: (.+)"]
             source: "stdout"
           - name: "verification_time"
-            pattern: "Verification completed at (.+)"
+            patterns: ["Verification completed at (.+)"]
             source: "stdout"
 
   - name: "install_docker"
@@ -69,10 +74,10 @@ pipelines:
           - mac_server
         extract:
           - name: "docker_version"
-            pattern: "Docker version: (.+)"
+            patterns: ["Docker version: (.+)"]
             source: "stdout"
           - name: "install_path"
-            pattern: "Installed to: (.+)"
+            patterns: ["Installed to: (.+)"]
             source: "stdout"
       
       - name: "start_docker"
@@ -82,10 +87,10 @@ pipelines:
           - mac_server
         extract:
           - name: "docker_status"
-            pattern: "Docker status: (.+)"
+            patterns: ["Docker status: (.+)"]
             source: "stdout"
           - name: "docker_pid"
-            pattern: "Docker PID: (\\d+)"
+            patterns: ["Docker PID: (\\d+)"]
             source: "stdout"
 
   - name: "install_docker_compose"
@@ -96,10 +101,10 @@ pipelines:
           - mac_server
         extract:
           - name: "compose_version"
-            pattern: "Docker Compose version: (.+)"
+            patterns: ["Docker Compose version: (.+)"]
             source: "stdout"
           - name: "compose_path"
-            pattern: "Compose installed to: (.+)"
+            patterns: ["Compose installed to: (.+)"]
             source: "stdout"
 
 default_timeout: 60 
