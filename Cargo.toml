@@ -6,11 +6,11 @@ edition = "2021"
 authors = ["li<1711293058@qq.com>"]
 description = "A remote script execution and variable extraction framework with SSH support, pipeline orchestration, and flexible variable extraction via regex."
 license = "MIT OR Apache-2.0"
-repository = "https://github.com/你的用户名/net-shell"
+repository = "https://github.com/winkb/net-shell"
 readme = "README.md"
 keywords = ["ssh", "remote", "automation", "extract", "pipeline"]
 categories = ["command-line-utilities", "development-tools"]
-homepage = "https://github.com/你的用户名/net-shell"
+homepage = "https://github.com/winkb/net-shell"
 documentation = "https://docs.rs/net-shell"
 
 [dependencies]
