@@ -12,6 +12,7 @@ pub use models::*;
 
 use std::{collections::HashMap, sync::Arc};
 use tracing_subscriber;
+use std::env;
 
 #[cfg(test)]
 mod tests {
@@ -54,12 +55,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 初始化日志
     tracing_subscriber::fmt::init();
 
-    let mut variables = HashMap::new();
+    // 解析命令行参数，支持指定配置文件路径
+    let args: Vec<String> = env::args().collect();
+    let config_path = if args.len() > 1 {
+        &args[1]
+    } else {
+        "config.yaml"
+    };
 
+    let mut variables = HashMap::new();
     variables.insert("new_master_ip".to_string(), "192.168.1.100".to_string());
 
     // 创建执行器
-    let executor = RemoteExecutor::from_yaml_file("config.yaml", Some(variables))?;
+    let executor = RemoteExecutor::from_yaml_file(config_path, Some(variables))?;
     
     // 定义实时输出回调函数
     let output_callback = Arc::new(|event: models::OutputEvent| {

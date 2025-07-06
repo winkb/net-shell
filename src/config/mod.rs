@@ -103,16 +103,14 @@ impl ConfigManager {
             }
 
             for step in &pipeline.steps {
-                if step.servers.is_empty() {
-                    return Err(anyhow::anyhow!("Step '{}' in pipeline '{}' has no servers", 
-                                              step.name, pipeline.name));
-                }
-
-                // 检查步骤中引用的服务器是否存在
-                for server in &step.servers {
-                    if !config.clients.contains_key(server) {
-                        return Err(anyhow::anyhow!("Server '{}' referenced in step '{}' not found in clients", 
-                                                  server, step.name));
+                // 允许空服务器列表用于本地执行
+                if !step.servers.is_empty() {
+                    // 检查步骤中引用的服务器是否存在
+                    for server in &step.servers {
+                        if !config.clients.contains_key(server) {
+                            return Err(anyhow::anyhow!("Server '{}' referenced in step '{}' not found in clients", 
+                                                      server, step.name));
+                        }
                     }
                 }
             }

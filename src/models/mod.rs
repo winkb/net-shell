@@ -58,6 +58,7 @@ fn default_cascade() -> bool {
 pub struct Step {
     pub name: String,
     pub script: String,
+    #[serde(default)]
     pub servers: Vec<String>,
     pub timeout_seconds: Option<u64>,
     pub extract: Option<Vec<ExtractRule>>,

@@ -10,6 +10,7 @@ use crate::models::{
     RemoteExecutionConfig, Step, StepExecutionResult, OutputCallback, OutputEvent
 };
 use crate::ssh::SshExecutor;
+use crate::ssh::local::LocalExecutor;
 use crate::vars::VariableManager;
 
 /// 远程执行器
@@ -261,6 +262,47 @@ impl RemoteExecutor {
         pipeline_variable_manager: &mut VariableManager
     ) -> Result<Vec<StepExecutionResult>> {
         let start_time = std::time::Instant::now();
+        
+        // 检查是否有服务器配置
+        if step.servers.is_empty() {
+            // 本地执行
+            info!("Executing step: {} locally (no servers specified)", step.name);
+            
+            let output_callback = output_callback.cloned();
+            let step_clone = step.clone();
+            let pipeline_name = pipeline_name.to_string();
+            let step_name = step.name.clone();
+            let variables = pipeline_variable_manager.get_variables().clone();
+            
+            let execution_result = LocalExecutor::execute_script_with_realtime_output(
+                &step_clone,
+                &pipeline_name,
+                &step_name,
+                output_callback,
+                variables,
+            ).await?;
+            
+            let success = execution_result.success;
+            
+            // 提取变量（如果有extract规则）
+            if let Some(extract_rules) = &step.extract {
+                if let Err(e) = pipeline_variable_manager.extract_variables(extract_rules, &execution_result) {
+                    info!("Failed to extract variables from step '{}': {}", step.name, e);
+                }
+            }
+            
+            let step_result = StepExecutionResult {
+                step_name: step.name.clone(),
+                server_name: "localhost".to_string(),
+                execution_result,
+                overall_success: success,
+                execution_time_ms: start_time.elapsed().as_millis() as u64,
+            };
+            
+            return Ok(vec![step_result]);
+        }
+        
+        // 远程执行（原有逻辑）
         info!("Executing step: {} on {} servers", step.name, step.servers.len());
 
         let mut step_results = Vec::new();

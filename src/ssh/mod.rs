@@ -1,3 +1,5 @@
+pub mod local;
+
 use anyhow::{Context, Result};
 use ssh2::Session;
 use std::io::{BufRead, BufReader};
