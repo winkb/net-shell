@@ -3,7 +3,7 @@ use std::process::{Command, Stdio};
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as TokioCommand;
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use crate::models::{ExecutionResult, OutputCallback, OutputEvent, OutputType, Step};
 
