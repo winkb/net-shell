@@ -1,8 +1,17 @@
 [package]
-name = "ai-demo"
+name = "net-shell"
 version = "0.1.0"
 edition = "2021"
-default-run = "main"
+# crates.io 元数据补全
+authors = ["li<1711293058@qq.com>"]
+description = "A remote script execution and variable extraction framework with SSH support, pipeline orchestration, and flexible variable extraction via regex."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/你的用户名/net-shell"
+readme = "README.md"
+keywords = ["ssh", "remote", "automation", "extract", "pipeline"]
+categories = ["command-line-utilities", "development-tools"]
+homepage = "https://github.com/你的用户名/net-shell"
+documentation = "https://docs.rs/net-shell"
 
 [dependencies]
 # YAML配置解析
@@ -33,11 +42,9 @@ chrono = { version = "0.4", features = ["serde"] }
 # 正则表达式
 regex = "1.0"
 
-
 [[bin]]
 name = "main"
 path = "src/main.rs"
-
 
 [[bin]]
 name = "cascade_demo"

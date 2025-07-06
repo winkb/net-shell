@@ -27,24 +27,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ai-demo"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "futures",
- "regex",
- "serde",
- "serde_json",
- "serde_yaml",
- "ssh2",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "android-tzdata"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -375,6 +357,24 @@ dependencies = [
  "libc",
  "wasi",
  "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "net-shell"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "futures",
+ "regex",
+ "serde",
+ "serde_json",
+ "serde_yaml",
+ "ssh2",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

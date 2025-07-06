@@ -1,17 +1,20 @@
-# 远程Shell脚本执行库
+# Net-Shell: 远程Shell脚本执行框架
 
-这是一个用Rust编写的远程shell脚本执行库，支持通过SSH和WebSocket（计划中）方式在远程服务器上执行shell脚本。
+Net-Shell 是一个用Rust编写的远程脚本执行和变量提取框架，支持通过SSH在远程服务器上执行shell脚本，并提供强大的变量提取和流水线编排功能。
 
 ## 功能特性
 
 - ✅ SSH远程执行shell脚本
-- 🔄 WebSocket远程执行（计划中）
+- 🔄 流水线编排和步骤管理
 - 📝 YAML配置文件支持
 - 🔐 支持密码和私钥认证
 - ⏱️ 执行时间统计
 - 📊 详细的执行结果（stdout、stderr、退出码）
 - 🚀 异步执行支持
 - 📝 完整的日志记录
+- 🔍 正则表达式变量提取
+- 🔗 级联变量提取支持
+- 📋 实时输出回调
 
 ## 安装
 
@@ -19,7 +22,7 @@
 
 ```toml
 [dependencies]
-ai-demo = { path = "." }
+net-shell = "0.1.0"
 ```
 
 ## 配置
@@ -27,25 +30,48 @@ ai-demo = { path = "." }
 创建YAML配置文件（例如`config.yaml`）：
 
 ```yaml
+variables:
+  master_ip: "192.168.0.199"
+  app_name: "myapp"
+  version: "1.0.0"
+
 clients:
-  server1:
-    name: "server1"
+  mac_server:
+    name: "mac_server"
     execution_method: ssh
     ssh_config:
-      host: "192.168.1.100"
+      host: "{{ master_ip }}"
       port: 22
-      username: "user"
-      password: "password"
-      timeout_seconds: 30
-  server2:
-    name: "server2"
-    execution_method: ssh
-    ssh_config:
-      host: "192.168.1.101"
-      port: 22
-      username: "admin"
-      private_key_path: "/path/to/private/key"
-      timeout_seconds: 30
+      username: "li"
+      private_key_path: "/Users/li/.ssh/id_rsa"
+      timeout_seconds: 2 
+
+pipelines:
+  - name: "deploy_app"
+    steps:
+      - name: "get_system_info"
+        script: "/path/to/get_system_info.sh"
+        timeout_seconds: 5
+        servers:
+          - mac_server
+        extract:
+          - name: "os_version"
+            patterns: ["OS Version: (.+)"]
+            source: "stdout"
+          - name: "hostname"
+            patterns: ["Hostname: (.+)"]
+            source: "stdout"
+      
+      - name: "deploy_application"
+        script: "/path/to/deploy.sh"
+        timeout_seconds: 10
+        servers:
+          - mac_server
+        extract:
+          - name: "deploy_path"
+            patterns: ["Deployed to: (.+)"]
+            source: "stdout"
+
 default_timeout: 60
 ```
 
@@ -54,7 +80,7 @@ default_timeout: 60
 ### 基本用法
 
 ```rust
-use ai_demo::RemoteExecutor;
+use net_shell::RemoteExecutor;
 use tracing_subscriber;
 
 #[tokio::main]
@@ -65,18 +91,66 @@ async fn main() -> anyhow::Result<()> {
     // 从YAML文件创建执行器
     let executor = RemoteExecutor::from_yaml_file("config.yaml")?;
 
-    // 执行shell脚本
-    let script = "echo 'Hello from remote server' && date";
-    let result = executor.execute_script("server1", script).await?;
-
-    println!("Success: {}", result.success);
-    println!("Exit code: {}", result.exit_code);
-    println!("Stdout: {}", result.stdout);
-    println!("Execution time: {}ms", result.execution_time_ms);
+    // 执行所有流水线
+    let results = executor.execute_all_pipelines().await?;
+    
+    // 打印执行结果摘要
+    for result in &results {
+        println!("Pipeline: {} ({})", result.pipeline_name, 
+                 if result.overall_success { "Success" } else { "Failed" });
+    }
 
     Ok(())
 }
 ```
+
+### 实时输出回调
+
+```rust
+use std::sync::Arc;
+use net_shell::models::OutputEvent;
+
+let output_callback = Arc::new(|event: OutputEvent| {
+    match event.output_type {
+        models::OutputType::Stdout => {
+            println!("[STDOUT] {}: {}", event.server_name, event.content);
+        }
+        models::OutputType::Stderr => {
+            eprintln!("[STDERR] {}: {}", event.server_name, event.content);
+        }
+        models::OutputType::Log => {
+            println!("[LOG] {}: {}", event.server_name, event.content);
+        }
+    }
+    
+    // 显示当前变量状态
+    if !event.variables.is_empty() {
+        println!("[VARS] Current variables: {:?}", event.variables);
+    }
+});
+
+let results = executor.execute_all_pipelines_with_realtime_output(
+    Some(output_callback.clone()), 
+    Some(output_callback)
+).await?;
+```
+
+### 变量提取
+
+Net-Shell 支持强大的变量提取功能：
+
+```yaml
+extract:
+  - name: "os_version"
+    patterns: ["OS Version: (.+)"]
+    source: "stdout"
+    cascade: true  # 默认启用级联模式
+```
+
+**变量提取约定：**
+- 始终获取第一个捕获组（第一个括号）的内容
+- 支持多个正则表达式作为备选方案
+- 支持级联模式：前一个正则的输出作为下一个正则的输入
 
 ### 从字符串创建配置
 
@@ -122,10 +196,22 @@ if executor.client_exists("server1") {
 
 * 必须提供password或private_key_path其中之一
 
-### 执行方式
+### 变量提取配置
 
-- `ssh`: 通过SSH连接执行（已实现）
-- `websocket`: 通过WebSocket发送消息执行（计划中）
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `name` | String | 是 | 变量名称 |
+| `patterns` | Vec<String> | 是 | 正则表达式模式列表 |
+| `source` | String | 是 | 提取源（stdout/stderr/exit_code） |
+| `cascade` | bool | 否 | 是否启用级联模式，默认true |
+
+### 流水线配置
+
+| 字段 | 类型 | 必需 | 说明 |
+|------|------|------|------|
+| `name` | String | 是 | 流水线名称 |
+| `steps` | Vec<Step> | 是 | 步骤列表 |
+| `timeout_seconds` | u64 | 否 | 步骤超时时间 |
 
 ## 执行结果
 
@@ -147,13 +233,14 @@ if executor.client_exists("server1") {
 - 认证失败
 - 命令执行失败
 - 网络超时
+- 变量提取失败
 
 ## 示例
 
 运行示例：
 
 ```bash
-cargo run --example basic_usage
+cargo run --bin main
 ```
 
 ## 测试
@@ -164,16 +251,15 @@ cargo run --example basic_usage
 cargo test
 ```
 
-## 计划功能
+## 特性
 
-- [ ] WebSocket执行支持
-- [ ] 批量执行
-- [ ] 执行超时控制
-- [ ] 重试机制
-- [ ] 更详细的错误信息
-- [ ] 配置文件验证
-- [ ] 支持环境变量传递
+- **变量提取**: 支持正则表达式从脚本输出中提取变量
+- **级联提取**: 支持多步骤变量提取，前一步的输出作为下一步的输入
+- **流水线编排**: 支持复杂的多步骤流水线执行
+- **实时输出**: 支持实时输出回调，便于监控和调试
+- **变量替换**: 支持在配置中使用`{{ variable_name }}`进行变量替换
+- **并发执行**: 同一步骤内的多个服务器并发执行
 
 ## 许可证
 
-MIT License 
+MIT OR Apache-2.0 
