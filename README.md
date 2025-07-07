@@ -219,6 +219,62 @@ steps:
         pattern: "Status: (.+)"
 ```
 
+## Real-time Output Events
+
+The framework provides comprehensive real-time output events through callback functions. Each event includes:
+
+- **Pipeline name**: The name of the executing pipeline
+- **Server name**: The server where the event occurred (or "system" for system events)
+- **Step information**: Complete step details including name, script, and configuration
+- **Event type**: The type of output event
+- **Content**: The actual output content
+- **Timestamp**: When the event occurred
+- **Variables**: Current variable state at the time of the event
+
+### Event Types
+
+The framework supports the following event types:
+
+- **`Stdout`**: Standard output from script execution
+- **`Stderr`**: Standard error output from script execution  
+- **`Log`**: System log messages and status updates
+- **`StepStarted`**: Triggered when a step begins execution (🚀)
+- **`StepCompleted`**: Triggered when a step finishes execution (✅)
+
+### Event Callback Example
+
+```rust
+let output_callback = Arc::new(|event: models::OutputEvent| {
+    match event.output_type {
+        models::OutputType::Stdout => {
+            println!("[STDOUT] {}@{}@{}: {}", 
+                    event.pipeline_name, event.step.name, event.server_name, event.content);
+        }
+        models::OutputType::Stderr => {
+            eprintln!("[STDERR] {}@{}@{}: {}", 
+                     event.pipeline_name, event.step.name, event.server_name, event.content);
+        }
+        models::OutputType::Log => {
+            println!("[LOG] {}@{}@{}: {}", 
+                    event.pipeline_name, event.step.name, event.server_name, event.content);
+        }
+        models::OutputType::StepStarted => {
+            println!("🚀 [STEP_STARTED] {}@{}@{}: {}", 
+                    event.pipeline_name, event.step.name, event.server_name, event.content);
+        }
+        models::OutputType::StepCompleted => {
+            println!("✅ [STEP_COMPLETED] {}@{}@{}: {}", 
+                    event.pipeline_name, event.step.name, event.server_name, event.content);
+        }
+    }
+    
+    // Access current variables
+    if !event.variables.is_empty() {
+        println!("[VARS] Current variables: {:?}", event.variables);
+    }
+});
+```
+
 ## Error Handling
 
 The framework provides comprehensive error handling:
@@ -293,6 +349,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             models::OutputType::Log => {
                 println!("[LOG] {}@{}@{}: {}", 
+                        event.pipeline_name,
+                        step.name,
+                        event.server_name, 
+                        event.content);
+            }
+            models::OutputType::StepStarted => {
+                println!("🚀 [STEP_STARTED] {}@{}@{}: {}", 
+                        event.pipeline_name,
+                        step.name,
+                        event.server_name, 
+                        event.content);
+            }
+            models::OutputType::StepCompleted => {
+                println!("✅ [STEP_COMPLETED] {}@{}@{}: {}", 
                         event.pipeline_name,
                         step.name,
                         event.server_name, 

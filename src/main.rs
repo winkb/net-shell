@@ -97,6 +97,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         event.server_name, 
                         event.content);
             }
+            models::OutputType::StepStarted => {
+                println!("🚀 [STEP_STARTED] {}@{}@{}: {}", 
+                        event.pipeline_name,
+                        step.name,
+                        event.server_name, 
+                        event.content);
+            }
+            models::OutputType::StepCompleted => {
+                println!("✅ [STEP_COMPLETED] {}@{}@{}: {}", 
+                        event.pipeline_name,
+                        step.name,
+                        event.server_name, 
+                        event.content);
+            }
         }
         
         // 显示当前变量状态
@@ -105,8 +119,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
         
         // 显示步骤详细信息（如果有）
-            println!("[STEP] Step details: name={}, script={}, servers={:?}, timeout={:?}, extract_rules={:?}", 
-                    step.name, step.script, step.servers, step.timeout_seconds, step.extract);
+        println!("[STEP] Step details: name={}, script={}, servers={:?}, timeout={:?}, extract_rules={:?}", 
+                step.name, step.script, step.servers, step.timeout_seconds, step.extract);
     });
 
     // 执行所有流水线

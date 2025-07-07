@@ -95,6 +95,20 @@ impl RemoteExecutor {
             let mut step_with_variables = step.clone();
             step_with_variables.script = pipeline_variable_manager.replace_variables(&step.script);
             
+            // 发送步骤开始事件
+            if let Some(callback) = &output_callback {
+                let event = OutputEvent {
+                    pipeline_name: pipeline.name.clone(),
+                    server_name: "system".to_string(),
+                    step: step.clone(), // 传递完整的Step对象
+                    output_type: crate::models::OutputType::StepStarted,
+                    content: format!("开始执行步骤: {} ({} 个服务器)", step.name, step.servers.len()),
+                    timestamp: std::time::Instant::now(),
+                    variables: pipeline_variable_manager.get_variables().clone(),
+                };
+                callback(event);
+            }
+            
             // 发送开始执行步骤的日志
             if let Some(callback) = &log_callback {
                 let event = OutputEvent {
@@ -119,6 +133,21 @@ impl RemoteExecutor {
             
             // 添加步骤结果
             all_step_results.extend(step_results);
+
+            // 发送步骤完成事件
+            if let Some(callback) = &output_callback {
+                let status = if step_success { "成功" } else { "失败" };
+                let event = OutputEvent {
+                    pipeline_name: pipeline.name.clone(),
+                    server_name: "system".to_string(),
+                    step: step.clone(), // 传递完整的Step对象
+                    output_type: crate::models::OutputType::StepCompleted,
+                    content: format!("步骤完成: {} ({})", step.name, status),
+                    timestamp: std::time::Instant::now(),
+                    variables: pipeline_variable_manager.get_variables().clone(),
+                };
+                callback(event);
+            }
 
             // 发送步骤完成日志
             if let Some(callback) = &log_callback {

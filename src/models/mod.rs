@@ -86,6 +86,8 @@ pub enum OutputType {
     Stdout,
     Stderr,
     Log,
+    StepStarted,    // 步骤开始执行
+    StepCompleted,  // 步骤执行完成
 }
 
 /// 实时输出事件
