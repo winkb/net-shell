@@ -19,7 +19,7 @@ pipelines:
   - name: "deploy_app"
     steps:
       - name: "get_system_info"
-        script: "/Users/li/data/rust/ai-demo/scripts/get_system_info.sh"
+        script: "./scripts/get_system_info.sh"
         timeout_seconds: 5
         servers:
           - mac_server
@@ -40,7 +40,7 @@ pipelines:
             source: "stdout"
       
       - name: "deploy_application"
-        script: "/Users/li/data/rust/ai-demo/scripts/deploy.sh"
+        script: "./scripts/deploy.sh"
         timeout_seconds: 10
         servers:
           - mac_server
@@ -53,7 +53,7 @@ pipelines:
             source: "stdout"
       
       - name: "verify_deployment"
-        script: "/Users/li/data/rust/ai-demo/scripts/verify.sh"
+        script: "./scripts/verify.sh"
         timeout_seconds: 5
         servers:
           - mac_server
@@ -68,7 +68,7 @@ pipelines:
   - name: "install_docker"
     steps:
       - name: "mock install docker"
-        script: "/Users/li/data/rust/ai-demo/scripts/mock_install_docker.sh"
+        script: "./scripts/mock_install_docker.sh"
         timeout_seconds: 3
         servers:
           - mac_server
@@ -81,7 +81,7 @@ pipelines:
             source: "stdout"
       
       - name: "start_docker"
-        script: "/Users/li/data/rust/ai-demo/scripts/mock_start_docker.sh"
+        script: "./scripts/mock_start_docker.sh"
         timeout_seconds: 3
         servers:
           - mac_server
@@ -96,7 +96,7 @@ pipelines:
   - name: "install_docker_compose"
     steps:
       - name: "mock install docker compose"
-        script: "/Users/li/data/rust/ai-demo/scripts/mock_install_docker_compose.sh"
+        script: "./scripts/mock_install_docker_compose.sh"
         servers:
           - mac_server
         extract:

@@ -33,33 +33,118 @@ cargo install net-shell
 Create a `config.yaml` file:
 
 ```yaml
-steps:
-  - name: "get_system_info"
-    servers:
-      - host: "192.168.1.100"
-        username: "user"
-        password: "password"
-    script: |
-      echo "System: $(uname -s)"
-      echo "Hostname: $(hostname)"
-      echo "Uptime: $(uptime)"
-    variables:
-      - name: "system_info"
-        pattern: "System: (.+)"
-      - name: "hostname"
-        pattern: "Hostname: (.+)"
-      - name: "uptime"
-        pattern: "Uptime: (.+)"
+# Global variables
+variables:
+  master_ip: "192.168.0.199"
+  app_name: "myapp"
+  version: "1.0.0"
 
-  - name: "process_info"
-    servers:
-      - host: "192.168.1.100"
-        username: "user"
-        password: "password"
-    script: |
-      echo "Processing system: ${system_info}"
-      echo "On host: ${hostname}"
-      ps aux | head -5
+# SSH client configurations
+clients:
+  mac_server:
+    name: "mac_server"
+    execution_method: ssh
+    ssh_config:
+      host: "{{ master_ip }}"
+      port: 22
+      username: "li"
+      private_key_path: "/Users/li/.ssh/id_rsa"
+      timeout_seconds: 2 
+
+# Pipeline definitions
+pipelines:
+  - name: "deploy_app"
+    steps:
+      - name: "get_system_info"
+        script: "./scripts/get_system_info.sh"
+        timeout_seconds: 5
+        servers:
+          - mac_server
+        extract:
+          - name: "os_version_num"
+            patterns: 
+              - "OS Version: (.+)"
+              - "(\\d+\\.\\d+\\.\\d+)"
+            source: "stdout"
+          - name: "os_version"
+            patterns: ["OS Version: (.+)"]
+            source: "stdout"
+          - name: "hostname"
+            patterns: ["Hostname: (.+)"]
+            source: "stdout"
+          - name: "current_user"
+            patterns: ["Current user: (.+)"]
+            source: "stdout"
+      
+      - name: "deploy_application"
+        script: "./scripts/deploy.sh"
+        timeout_seconds: 10
+        servers:
+          - mac_server
+        extract:
+          - name: "deploy_path"
+            patterns: ["Deployed to: (.+)"]
+            source: "stdout"
+          - name: "deploy_status"
+            patterns: ["Status: (.+)"]
+            source: "stdout"
+      
+      - name: "verify_deployment"
+        script: "./scripts/verify.sh"
+        timeout_seconds: 5
+        servers:
+          - mac_server
+        extract:
+          - name: "service_status"
+            patterns: ["Service Status: (.+)"]
+            source: "stdout"
+          - name: "verification_time"
+            patterns: ["Verification completed at (.+)"]
+            source: "stdout"
+
+  - name: "install_docker"
+    steps:
+      - name: "mock install docker"
+        script: "./scripts/mock_install_docker.sh"
+        timeout_seconds: 3
+        servers:
+          - mac_server
+        extract:
+          - name: "docker_version"
+            patterns: ["Docker version: (.+)"]
+            source: "stdout"
+          - name: "install_path"
+            patterns: ["Installed to: (.+)"]
+            source: "stdout"
+      
+      - name: "start_docker"
+        script: "./scripts/mock_start_docker.sh"
+        timeout_seconds: 3
+        servers:
+          - mac_server
+        extract:
+          - name: "docker_status"
+            patterns: ["Docker status: (.+)"]
+            source: "stdout"
+          - name: "docker_pid"
+            patterns: ["Docker PID: (\\d+)"]
+            source: "stdout"
+
+  - name: "install_docker_compose"
+    steps:
+      - name: "mock install docker compose"
+        script: "./scripts/mock_install_docker_compose.sh"
+        servers:
+          - mac_server
+        extract:
+          - name: "compose_version"
+            patterns: ["Docker Compose version: (.+)"]
+            source: "stdout"
+          - name: "compose_path"
+            patterns: ["Compose installed to: (.+)"]
+            source: "stdout"
+
+default_timeout: 60
 ```
 
 ### Local Execution
@@ -73,9 +158,10 @@ steps:
       echo "Running locally on: $(hostname)"
       echo "Current user: $(whoami)"
       echo "Working directory: $(pwd)"
-    variables:
+    extract:
       - name: "local_hostname"
-        pattern: "Running locally on: (.+)"
+        patterns: ["Running locally on: (.+)"]
+        source: "stdout"
 ```
 
 ### Mixed Local and Remote Execution
@@ -88,18 +174,17 @@ steps:
     script: |
       echo "Preparing locally..."
       echo "Timestamp: $(date)"
-    variables:
+    extract:
       - name: "timestamp"
-        pattern: "Timestamp: (.+)"
+        patterns: ["Timestamp: (.+)"]
+        source: "stdout"
 
   - name: "remote_execution"
-    servers:
-      - host: "192.168.1.100"
-        username: "user"
-        password: "password"
     script: |
       echo "Executing remotely with timestamp: ${timestamp}"
       echo "Remote host: $(hostname)"
+    servers:
+      - mac_server
 ```
 
 ## Usage
@@ -109,30 +194,32 @@ steps:
 Run with default configuration (`config.yaml`):
 
 ```bash
-cargo run --bin main
+cargo run
 ```
 
 Or specify a custom configuration file:
 
 ```bash
-cargo run --bin main config_custom.yaml
+cargo run config_custom.yaml
 ```
 
 ### Programmatic Usage
 
 ```rust
-use net_shell::{Config, Executor};
+use net_shell::{RemoteExecutor, models::*};
+use std::collections::HashMap;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Load configuration
-    let config = Config::from_file("config.yaml")?;
-    
+    // Create variables
+    let mut variables = HashMap::new();
+    variables.insert("new_master_ip".to_string(), "192.168.1.100".to_string());
+
     // Create executor
-    let executor = Executor::new(config);
+    let executor = RemoteExecutor::from_yaml_file("config.yaml", Some(variables))?;
     
-    // Execute all steps
-    executor.execute_all().await?;
+    // Execute all pipelines
+    let results = executor.execute_all_pipelines().await?;
     
     Ok(())
 }
@@ -140,36 +227,65 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ## Configuration Reference
 
-### Step Configuration
+### Global Variables
 
-Each step supports the following fields:
-
-- `name`: Unique identifier for the step
-- `servers`: List of SSH server configurations (optional for local execution)
-- `script`: Shell script to execute
-- `variables`: List of variable extraction patterns
-
-### Server Configuration
+Define global variables that can be referenced throughout the configuration:
 
 ```yaml
-servers:
-  - host: "192.168.1.100"
-    username: "user"
-    password: "password"
-    # Optional: port (default: 22)
-    port: 22
-    # Optional: timeout in seconds (default: 30)
-    timeout: 30
+variables:
+  master_ip: "192.168.0.199"
+  app_name: "myapp"
+  version: "1.0.0"
+```
+
+### Client Configuration
+
+Define SSH clients for remote execution:
+
+```yaml
+clients:
+  server_name:
+    name: "server_name"
+    execution_method: ssh
+    ssh_config:
+      host: "{{ master_ip }}"  # Can reference variables
+      port: 22
+      username: "user"
+      password: "password"      # Or use private_key_path
+      private_key_path: "/path/to/key"
+      timeout_seconds: 30
+```
+
+### Pipeline Configuration
+
+Each pipeline contains multiple steps:
+
+```yaml
+pipelines:
+  - name: "pipeline_name"
+    steps:
+      - name: "step_name"
+        script: "/path/to/script.sh"
+        timeout_seconds: 30
+        servers:
+          - server_name
+        extract:
+          - name: "variable_name"
+            patterns: ["Pattern: (.+)"]
+            source: "stdout"  # or "stderr"
 ```
 
 ### Variable Extraction
 
-Variables are extracted using regex patterns. Only the first capture group is used:
+Variables are extracted using regex patterns. Multiple patterns can be chained:
 
 ```yaml
-variables:
+extract:
   - name: "extracted_value"
-    pattern: "Value: (.+)"
+    patterns: 
+      - "Value: (.+)"
+      - "(\\d+\\.\\d+\\.\\d+)"  # Extract version number
+    source: "stdout"
 ```
 
 ## Examples
@@ -183,13 +299,16 @@ steps:
       echo "CPU: $(nproc) cores"
       echo "Memory: $(free -h | grep Mem | awk '{print $2}')"
       echo "Disk: $(df -h / | tail -1 | awk '{print $4}') available"
-    variables:
+    extract:
       - name: "cpu_cores"
-        pattern: "CPU: (.+) cores"
+        patterns: ["CPU: (.+) cores"]
+        source: "stdout"
       - name: "memory_total"
-        pattern: "Memory: (.+)"
+        patterns: ["Memory: (.+)"]
+        source: "stdout"
       - name: "disk_available"
-        pattern: "Disk: (.+) available"
+        patterns: ["Disk: (.+) available"]
+        source: "stdout"
 ```
 
 ### Pipeline with Variable Passing
@@ -198,245 +317,52 @@ steps:
 steps:
   - name: "step1"
     script: |
-      echo "Step 1 completed"
-      echo "Result: success"
-    variables:
-      - name: "step1_result"
-        pattern: "Result: (.+)"
+      echo "Step 1 output"
+      echo "Value: 42"
+    extract:
+      - name: "step1_value"
+        patterns: ["Value: (.+)"]
+        source: "stdout"
 
   - name: "step2"
     script: |
-      echo "Step 1 result was: ${step1_result}"
-      if [ "${step1_result}" = "success" ]; then
-        echo "Step 2: processing..."
-        echo "Status: completed"
-      else
-        echo "Step 2: skipped"
-        echo "Status: skipped"
-      fi
-    variables:
-      - name: "step2_status"
-        pattern: "Status: (.+)"
+      echo "Using value from step1: ${step1_value}"
+      echo "Processing..."
+    servers:
+      - remote_server
 ```
 
-## Real-time Output Events
+## Real-time Output
 
-The framework provides comprehensive real-time output events through callback functions. Each event includes:
+The framework provides real-time output streaming with detailed event information:
 
-- **Pipeline name**: The name of the executing pipeline
-- **Server name**: The server where the event occurred (or "system" for system events)
-- **Step information**: Complete step details including name, script, and configuration
-- **Event type**: The type of output event
-- **Content**: The actual output content
-- **Timestamp**: When the event occurred
-- **Variables**: Current variable state at the time of the event
-
-### Event Types
-
-The framework supports the following event types:
-
-- **`Stdout`**: Standard output from script execution
-- **`Stderr`**: Standard error output from script execution  
-- **`Log`**: System log messages and status updates
-- **`StepStarted`**: Triggered when a step begins execution (🚀)
-- **`StepCompleted`**: Triggered when a step finishes execution (✅)
-
-### Event Callback Example
-
-```rust
-let output_callback = Arc::new(|event: models::OutputEvent| {
-    match event.output_type {
-        models::OutputType::Stdout => {
-            println!("[STDOUT] {}@{}@{}: {}", 
-                    event.pipeline_name, event.step.name, event.server_name, event.content);
-        }
-        models::OutputType::Stderr => {
-            eprintln!("[STDERR] {}@{}@{}: {}", 
-                     event.pipeline_name, event.step.name, event.server_name, event.content);
-        }
-        models::OutputType::Log => {
-            println!("[LOG] {}@{}@{}: {}", 
-                    event.pipeline_name, event.step.name, event.server_name, event.content);
-        }
-        models::OutputType::StepStarted => {
-            println!("🚀 [STEP_STARTED] {}@{}@{}: {}", 
-                    event.pipeline_name, event.step.name, event.server_name, event.content);
-        }
-        models::OutputType::StepCompleted => {
-            println!("✅ [STEP_COMPLETED] {}@{}@{}: {}", 
-                    event.pipeline_name, event.step.name, event.server_name, event.content);
-        }
-    }
-    
-    // Access current variables
-    if !event.variables.is_empty() {
-        println!("[VARS] Current variables: {:?}", event.variables);
-    }
-});
+```
+🚀 [STEP_STARTED] deploy_app@get_system_info@mac_server: Starting step
+[STDOUT] deploy_app@get_system_info@mac_server: System: Darwin
+[STDOUT] deploy_app@get_system_info@mac_server: Hostname: macbook-pro
+[VARS] Current variables: {"os_version": "macOS 13.0", "hostname": "macbook-pro"}
+✅ [STEP_COMPLETED] deploy_app@get_system_info@mac_server: Step completed successfully
 ```
 
 ## Error Handling
 
-The framework provides comprehensive error handling:
+The framework provides comprehensive error handling and logging:
 
-- SSH connection failures
-- Script execution errors
-- Variable extraction failures
-- Configuration validation errors
+- Connection timeouts
+- Script execution failures
+- Variable extraction errors
+- Pipeline orchestration issues
 
-All errors are logged with appropriate context and stack traces.
-
-## Implementation Example
-
-Here's the complete implementation of the main program (`src/main.rs`) that demonstrates how to use the net-shell framework:
-
-```rust
-// 模块声明
-pub mod config;
-pub mod executor;
-pub mod models;
-pub mod ssh;
-pub mod vars;
-
-// 重新导出主要类型，方便外部使用
-pub use executor::RemoteExecutor;
-pub use models::*;
-
-use std::{collections::HashMap, sync::Arc};
-use tracing_subscriber;
-use std::env;
-
-// 主函数用于演示实时输出功能
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 初始化日志
-    tracing_subscriber::fmt::init();
-
-    // 解析命令行参数，支持指定配置文件路径
-    let args: Vec<String> = env::args().collect();
-    let config_path = if args.len() > 1 {
-        &args[1]
-    } else {
-        "config.yaml"
-    };
-
-    let mut variables = HashMap::new();
-    variables.insert("new_master_ip".to_string(), "192.168.1.100".to_string());
-
-    // 创建执行器
-    let executor = RemoteExecutor::from_yaml_file(config_path, Some(variables))?;
-    
-    // 定义实时输出回调函数
-    let output_callback = Arc::new(|event: models::OutputEvent| {
-        let step = event.step.clone();
-        
-        match event.output_type {
-            models::OutputType::Stdout => {
-                println!("[STDOUT] {}@{}@{}: {}", 
-                        event.pipeline_name,
-                        step.name,
-                        event.server_name, 
-                        event.content);
-            }
-            models::OutputType::Stderr => {
-                eprintln!("[STDERR] {}@{}@{}: {}, script:[{}]", 
-                         event.pipeline_name,
-                         step.name,
-                         event.server_name, 
-                         event.content,
-                         event.step.script
-                        );
-            }
-            models::OutputType::Log => {
-                println!("[LOG] {}@{}@{}: {}", 
-                        event.pipeline_name,
-                        step.name,
-                        event.server_name, 
-                        event.content);
-            }
-            models::OutputType::StepStarted => {
-                println!("🚀 [STEP_STARTED] {}@{}@{}: {}", 
-                        event.pipeline_name,
-                        step.name,
-                        event.server_name, 
-                        event.content);
-            }
-            models::OutputType::StepCompleted => {
-                println!("✅ [STEP_COMPLETED] {}@{}@{}: {}", 
-                        event.pipeline_name,
-                        step.name,
-                        event.server_name, 
-                        event.content);
-            }
-        }
-        
-        // 显示当前变量状态
-        if !event.variables.is_empty() {
-            println!("[VARS] Current variables: {:?}", event.variables);
-        }
-        
-        // 显示步骤详细信息（如果有）
-        println!("[STEP] Step details: name={}, script={}, servers={:?}, timeout={:?}, extract_rules={:?}", 
-                step.name, step.script, step.servers, step.timeout_seconds, step.extract);
-    });
-
-    // 执行所有流水线
-    let results = executor.execute_all_pipelines_with_realtime_output(Some(output_callback.clone()), Some(output_callback)).await?;
-    
-    // 打印执行结果摘要
-    println!("\n=== 执行结果摘要 ===");
-    for result in &results {
-        println!("\n流水线: {} ({})", result.pipeline_name, 
-                 if result.overall_success { "成功" } else { "失败" });
-        println!("总执行时间: {}ms", result.total_execution_time_ms);
-        println!("步骤结果:");
-        
-        for step_result in &result.step_results {
-            let status = if step_result.execution_result.success { "✅" } else { "❌" };
-            println!("  {} [{}:{}] {} - {}ms", 
-                     status,
-                     result.pipeline_name,
-                     step_result.step_name,
-                     step_result.server_name,
-                     step_result.execution_result.execution_time_ms);
-        }
-    }
-    
-    // 统计总体结果
-    let total_pipelines = results.len();
-    let successful_pipelines = results.iter().filter(|r| r.overall_success).count();
-    let total_steps = results.iter().map(|r| r.step_results.len()).sum::<usize>();
-    let successful_steps = results.iter()
-        .flat_map(|r| &r.step_results)
-        .filter(|r| r.execution_result.success)
-        .count();
-    
-    println!("\n=== 总体统计 ===");
-    println!("流水线: {}/{} 成功", successful_pipelines, total_pipelines);
-    println!("步骤: {}/{} 成功", successful_steps, total_steps);
-    
-    Ok(())
-}
-```
-
-### Key Features Demonstrated:
-
-1. **Command Line Arguments**: Supports specifying custom configuration file paths
-2. **Real-time Output**: Implements comprehensive real-time output handling with different output types
-3. **Variable Tracking**: Shows current variable state during execution
-4. **Detailed Logging**: Provides step-by-step execution details
-5. **Result Summary**: Generates comprehensive execution reports
-6. **Statistics**: Calculates success rates for pipelines and steps
+All errors are logged with detailed context and stack traces for debugging.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
 
 ## License
 
-This project is licensed under either of
-
-* Apache License, Version 2.0, ([LICENSE-APACHE](LICENSE-APACHE) or https://www.apache.org/licenses/LICENSE-2.0)
-* MIT license ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/licenses/MIT)
-
-at your option.
+This project is licensed under the MIT License.
