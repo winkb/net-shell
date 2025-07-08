@@ -1,6 +1,6 @@
 [package]
 name = "net-shell"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 # crates.io 元数据补全
 authors = ["li<1711293058@qq.com>"]

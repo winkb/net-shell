@@ -465,6 +465,7 @@ impl RemoteExecutor {
         let step_name = step.name.clone();
         let extract_rules = step.extract.clone();
         let variable_manager = self.variable_manager.clone();
+        let clone_ssh_config = ssh_config.clone();
 
         // 在tokio的阻塞线程池中执行SSH操作
         let result = tokio::task::spawn_blocking(move || {
@@ -478,7 +479,7 @@ impl RemoteExecutor {
                 variable_manager,
                 extract_rules
             )
-        }).await??;
+        }).await?.context(format!("{:#?}", clone_ssh_config))?;
 
         let execution_time = start_time.elapsed().as_millis() as u64;
 
