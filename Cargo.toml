@@ -1,6 +1,6 @@
 [package]
 name = "net-shell"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 # crates.io 元数据补全
 authors = ["li<1711293058@qq.com>"]
@@ -41,6 +41,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # 正则表达式
 regex = "1.0"
+tempfile = "3.20.0"
 
 [[bin]]
 name = "main"

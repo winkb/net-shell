@@ -4,6 +4,8 @@ use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command as TokioCommand;
 use tracing::{error, info};
+use tempfile;
+use std::io::Write;
 
 use crate::models::{ExecutionResult, OutputCallback, OutputEvent, OutputType, Step};
 
@@ -22,13 +24,33 @@ impl LocalExecutor {
         let start_time = Instant::now();
         let pipeline_name = pipeline_name.to_string();
         
-        // 检查脚本文件是否存在
-        let script_path = std::path::Path::new(&step.script);
+        // 替换 script 路径中的 {{ 变量 }} 占位符
+        let mut script_path_str = step.script.clone();
+        for (key, value) in &variables {
+            let placeholder = format!("{{{{ {} }}}}", key);
+            script_path_str = script_path_str.replace(&placeholder, value);
+        }
+        let script_path = std::path::Path::new(&script_path_str);
         if !script_path.exists() {
-            return Err(anyhow::anyhow!("Script '{}' not found", step.script));
+            return Err(anyhow::anyhow!("Script '{}' not found", script_path_str));
         }
 
-        info!("Executing local script: {}", step.script);
+        // 读取脚本内容并进行变量替换
+        let mut script_content = std::fs::read_to_string(&script_path)
+            .map_err(|e| anyhow::anyhow!("Failed to read script file '{}': {}", script_path_str, e))?;
+        for (key, value) in &variables {
+            let placeholder = format!("{{{{ {} }}}}", key);
+            script_content = script_content.replace(&placeholder, value);
+        }
+
+        // 写入临时文件
+        let mut temp_file = tempfile::NamedTempFile::new()
+            .map_err(|e| anyhow::anyhow!("Failed to create temp file: {}", e))?;
+        temp_file.write_all(script_content.as_bytes())
+            .map_err(|e| anyhow::anyhow!("Failed to write to temp file: {}", e))?;
+        let temp_path = temp_file.path().to_path_buf();
+
+        info!("Executing local script: {} (with content variable substitution)", script_path_str);
 
         // 发送开始执行的日志
         if let Some(callback) = &output_callback {
@@ -37,7 +59,7 @@ impl LocalExecutor {
                 server_name: "localhost".to_string(),
                 step: step.clone(),
                 output_type: OutputType::Log,
-                content: format!("开始执行本地脚本: {}", step.script),
+                content: format!("开始执行本地脚本: {} (内容已变量替换)", script_path_str),
                 timestamp: Instant::now(),
                 variables: variables.clone(),
             };
@@ -49,7 +71,7 @@ impl LocalExecutor {
         
         // 创建异步命令
         let mut command = TokioCommand::new("bash");
-        command.arg(&step.script);
+        command.arg(temp_path.to_str().unwrap());
         command.current_dir(std::env::current_dir()?);
         
         // 设置环境变量
@@ -161,7 +183,7 @@ impl LocalExecutor {
         let execution_time = start_time.elapsed().as_millis() as u64;
         let success = exit_code == 0;
 
-        info!("Local script '{}' completed with exit code: {}", step.script, exit_code);
+        info!("Local script '{}' completed with exit code: {}", script_path_str, exit_code);
 
         // 发送完成日志
         if let Some(callback) = &output_callback {
@@ -171,18 +193,21 @@ impl LocalExecutor {
                 server_name: "localhost".to_string(),
                 step: step.clone(),
                 output_type: OutputType::Log,
-                content: format!("本地脚本执行完成: {} ({}) - 耗时: {}ms", step.script, status, execution_time),
+                content: format!("本地脚本执行完成: {} ({}) - 耗时: {}ms", script_path_str, status, execution_time),
                 timestamp: Instant::now(),
                 variables: variables.clone(),
             };
             callback(event);
         }
 
+        // 清理临时文件（drop后自动删除）
+        drop(temp_file);
+
         Ok(ExecutionResult {
             success,
             stdout: stdout_content,
             stderr: stderr_content,
-            script: step.script.clone(),
+            script: script_path_str.clone(),
             exit_code,
             execution_time_ms: execution_time,
             error_message: if success { None } else { Some(format!("Script exited with code {}", exit_code)) },

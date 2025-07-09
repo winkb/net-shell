@@ -302,7 +302,7 @@ impl RemoteExecutor {
             let pipeline_name = pipeline_name.to_string();
             let step_name = step.name.clone();
             let variables = pipeline_variable_manager.get_variables().clone();
-            
+
             let execution_result = LocalExecutor::execute_script_with_realtime_output(
                 &step_clone,
                 &pipeline_name,
