@@ -298,7 +298,9 @@ impl RemoteExecutor {
             let step_clone = step.clone();
             let pipeline_name = pipeline_name.to_string();
             let step_name = step.name.clone();
-            let variables = variable_manager.get_variables().clone();
+            let mut variables = variable_manager.get_variables().clone();
+            variables.insert("pipeline_name".to_string(), pipeline_name.clone());
+            variables.insert("step_name".to_string(), step_name.clone());
             let execution_result = LocalExecutor::execute_script_with_realtime_output(
                 &step_clone,
                 &pipeline_name,
@@ -345,6 +347,10 @@ impl RemoteExecutor {
             let clone_step = step.clone();
             let pipeline_name = pipeline_name.to_string();
             let variable_manager = variable_manager.clone();
+            // 注入 pipeline_name 和 step_name
+            let mut variables = variable_manager.get_variables().clone();
+            variables.insert("pipeline_name".to_string(), pipeline_name.clone());
+            variables.insert("step_name".to_string(), step_name.clone());
 
             let future = tokio::spawn(async move {
                 // 创建新的执行器实例
@@ -352,7 +358,13 @@ impl RemoteExecutor {
                     config,
                     variable_manager,
                 };
-                match executor.execute_script_with_realtime_output(&server_name, clone_step, &pipeline_name, output_callback).await {
+                match LocalExecutor::execute_script_with_realtime_output(
+                    &clone_step,
+                    &pipeline_name,
+                    &step_name,
+                    output_callback,
+                    variables,
+                ).await {
                     Ok(result) => {
                         info!("Step '{}' on server '{}' completed with exit code: {}", 
                               step_name, server_name, result.exit_code);

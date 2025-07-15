@@ -142,6 +142,11 @@ impl VariableManager {
         &self.variables
     }
 
+    /// 移除变量
+    pub fn remove_variable(&mut self, key: &str) {
+        self.variables.remove(key);
+    }
+
     /// 设置变量
     pub fn set_variable(&mut self, key: String, value: String) {
         self.variables.insert(key, value);
