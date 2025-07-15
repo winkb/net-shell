@@ -91,6 +91,14 @@ impl RemoteExecutor {
 
         // 按顺序执行每个步骤（串行）
         for step in steps {
+            // 合并 step 级变量到全局变量（优先级高）
+            let mut step_var_keys = Vec::new();
+            if let Some(vars) = &step.variables {
+                for (k, v) in vars {
+                    self.variable_manager.set_variable(k.clone(), v.clone());
+                    step_var_keys.push(k.clone());
+                }
+            }
             // 对当前步骤应用变量替换
             let mut step_with_variables = step.clone();
             step_with_variables.script = self.variable_manager.replace_variables(&step.script);
@@ -133,6 +141,11 @@ impl RemoteExecutor {
             
             // 添加步骤结果
             all_step_results.extend(step_results);
+
+            // 移除 step 级变量，避免污染后续 step
+            for k in step_var_keys {
+                self.variable_manager.remove_variable(&k);
+            }
 
             // 发送步骤完成事件
             if let Some(callback) = &output_callback {

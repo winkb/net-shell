@@ -62,6 +62,8 @@ pub struct Step {
     pub servers: Vec<String>,
     pub timeout_seconds: Option<u64>,
     pub extract: Option<Vec<ExtractRule>>,
+    #[serde(default)]
+    pub variables: Option<HashMap<String, String>>,
 }
 
 /// 流水线配置
