@@ -67,7 +67,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     variables.insert("new_master_ip".to_string(), "192.168.1.100".to_string());
 
     // 创建执行器
-    let executor = RemoteExecutor::from_yaml_file(config_path, Some(variables))?;
+    let mut executor = RemoteExecutor::from_yaml_file(config_path, Some(variables))?;
     
     // 定义实时输出回调函数
     let output_callback = Arc::new(|event: models::OutputEvent| {

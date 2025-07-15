@@ -58,53 +58,53 @@ impl RemoteExecutor {
 
     /// 执行指定的流水线（支持实时输出）
     pub async fn execute_pipeline_with_realtime_output(
-        &self, 
+        &mut self, // 需要可变引用
         pipeline_name: &str,
         output_callback: Option<OutputCallback>,
         log_callback: Option<OutputCallback>
     ) -> Result<PipelineExecutionResult> {
         let pipeline = self.config.pipelines.iter()
             .find(|p| p.name == pipeline_name)
+            .cloned()
             .ok_or_else(|| anyhow::anyhow!("Pipeline '{}' not found", pipeline_name))?;
 
+        let pipeline_name = pipeline.name.clone();
+        let steps: Vec<Step> = pipeline.steps.clone();
         let start_time = std::time::Instant::now();
         let mut all_step_results = Vec::new();
-        
-        // 克隆变量管理器，用于跟随执行过程
-        let mut pipeline_variable_manager = self.variable_manager.clone();
 
         // 发送开始执行流水线的日志
         if let Some(callback) = &log_callback {
             let event = OutputEvent {
-                pipeline_name: pipeline.name.clone(),
+                pipeline_name: pipeline_name.clone(),
                 server_name: "system".to_string(),
                 step: Step::default(), // 流水线开始事件没有具体的步骤
                 output_type: crate::models::OutputType::Log,
-                content: format!("开始执行流水线: {}", pipeline.name),
+                content: format!("开始执行流水线: {}", pipeline_name),
                 timestamp: std::time::Instant::now(),
-                variables: pipeline_variable_manager.get_variables().clone(),
+                variables: self.variable_manager.get_variables().clone(),
             };
             callback(event);
         }
 
-        info!("Starting pipeline: {}", pipeline.name);
+        info!("Starting pipeline: {}", pipeline_name);
 
         // 按顺序执行每个步骤（串行）
-        for step in &pipeline.steps {
+        for step in steps {
             // 对当前步骤应用变量替换
             let mut step_with_variables = step.clone();
-            step_with_variables.script = pipeline_variable_manager.replace_variables(&step.script);
+            step_with_variables.script = self.variable_manager.replace_variables(&step.script);
             
             // 发送步骤开始事件
             if let Some(callback) = &output_callback {
                 let event = OutputEvent {
-                    pipeline_name: pipeline.name.clone(),
+                    pipeline_name: pipeline_name.clone(),
                     server_name: "system".to_string(),
                     step: step.clone(), // 传递完整的Step对象
                     output_type: crate::models::OutputType::StepStarted,
                     content: format!("开始执行步骤: {} ({} 个服务器)", step.name, step.servers.len()),
                     timestamp: std::time::Instant::now(),
-                    variables: pipeline_variable_manager.get_variables().clone(),
+                    variables: self.variable_manager.get_variables().clone(),
                 };
                 callback(event);
             }
@@ -112,13 +112,13 @@ impl RemoteExecutor {
             // 发送开始执行步骤的日志
             if let Some(callback) = &log_callback {
                 let event = OutputEvent {
-                    pipeline_name: pipeline.name.clone(),
+                    pipeline_name: pipeline_name.clone(),
                     server_name: "system".to_string(),
                     step: step.clone(), // 传递完整的Step对象
                     output_type: crate::models::OutputType::Log,
                     content: format!("开始执行步骤: {} ({} 个服务器)", step.name, step.servers.len()),
                     timestamp: std::time::Instant::now(),
-                    variables: pipeline_variable_manager.get_variables().clone(),
+                    variables: self.variable_manager.get_variables().clone(),
                 };
                 callback(event);
             }
@@ -126,7 +126,7 @@ impl RemoteExecutor {
             info!("Starting step: {} on {} servers", step.name, step.servers.len());
             
             // 同一步骤内的所有服务器并发执行
-            let step_results = self.execute_step_with_realtime_output(&step_with_variables, pipeline_name, output_callback.as_ref(), &mut pipeline_variable_manager).await?;
+            let step_results = self.execute_step_with_realtime_output(&step_with_variables, pipeline_name.as_str(), output_callback.as_ref()).await?;
             
             // 检查步骤是否成功（所有服务器都成功才算成功）
             let step_success = step_results.iter().all(|r| r.execution_result.success);
@@ -138,13 +138,13 @@ impl RemoteExecutor {
             if let Some(callback) = &output_callback {
                 let status = if step_success { "成功" } else { "失败" };
                 let event = OutputEvent {
-                    pipeline_name: pipeline.name.clone(),
+                    pipeline_name: pipeline_name.clone(),
                     server_name: "system".to_string(),
                     step: step.clone(), // 传递完整的Step对象
                     output_type: crate::models::OutputType::StepCompleted,
                     content: format!("步骤完成: {} ({})", step.name, status),
                     timestamp: std::time::Instant::now(),
-                    variables: pipeline_variable_manager.get_variables().clone(),
+                    variables: self.variable_manager.get_variables().clone(),
                 };
                 callback(event);
             }
@@ -153,13 +153,13 @@ impl RemoteExecutor {
             if let Some(callback) = &log_callback {
                 let status = if step_success { "成功" } else { "失败" };
                 let event = OutputEvent {
-                    pipeline_name: pipeline.name.clone(),
+                    pipeline_name: pipeline_name.clone(),
                     server_name: "system".to_string(),
                     step: step.clone(), // 传递完整的Step对象
                     output_type: crate::models::OutputType::Log,
                     content: format!("步骤完成: {} ({})", step.name, status),
                     timestamp: std::time::Instant::now(),
-                    variables: pipeline_variable_manager.get_variables().clone(),
+                    variables: self.variable_manager.get_variables().clone(),
                 };
                 callback(event);
             }
@@ -180,19 +180,19 @@ impl RemoteExecutor {
         if let Some(callback) = &log_callback {
             let status = if overall_success { "成功" } else { "失败" };
             let event = OutputEvent {
-                pipeline_name: pipeline.name.clone(),
+                pipeline_name: pipeline_name.clone(),
                 server_name: "system".to_string(),
                 step: Step::default(), // 流水线完成事件没有具体的步骤
                 output_type: crate::models::OutputType::Log,
-                content: format!("流水线完成: {} ({}) - 总耗时: {}ms", pipeline.name, status, total_time),
+                content: format!("流水线完成: {} ({}) - 总耗时: {}ms", pipeline_name, status, total_time),
                 timestamp: std::time::Instant::now(),
-                variables: pipeline_variable_manager.get_variables().clone(),
+                variables: self.variable_manager.get_variables().clone(),
             };
             callback(event);
         }
 
         Ok(PipelineExecutionResult {
-            pipeline_name: pipeline.name.clone(),
+            pipeline_name: pipeline_name.clone(),
             step_results: all_step_results,
             overall_success,
             total_execution_time_ms: total_time,
@@ -201,7 +201,7 @@ impl RemoteExecutor {
 
     /// 执行所有流水线（支持实时输出）
     pub async fn execute_all_pipelines_with_realtime_output(
-        &self,
+        &mut self, // 需要可变引用
         output_callback: Option<OutputCallback>,
         log_callback: Option<OutputCallback>
     ) -> Result<Vec<PipelineExecutionResult>> {
@@ -244,65 +244,61 @@ impl RemoteExecutor {
         }
         
         // 按顺序执行每个流水线（串行）
-        for pipeline in &self.config.pipelines {
+        let pipeline_names: Vec<String> = self.config.pipelines.iter().map(|p| p.name.clone()).collect();
+        for pipeline_name in pipeline_names {
             // 发送开始执行流水线的日志
             if let Some(callback) = &log_callback {
                 let event = OutputEvent {
-                    pipeline_name: pipeline.name.clone(),
+                    pipeline_name: pipeline_name.clone(),
                     server_name: "system".to_string(),
                     step: Step::default(), // 流水线开始事件没有具体的步骤
                     output_type: crate::models::OutputType::Log,
-                    content: format!("开始执行流水线: {}", pipeline.name),
+                    content: format!("开始执行流水线: {}", pipeline_name),
                     timestamp: std::time::Instant::now(),
                     variables: self.variable_manager.get_variables().clone(),
                 };
                 callback(event);
             }
-            
-            info!("Starting pipeline: {}", pipeline.name);
-            
-            let result = self.execute_pipeline_with_realtime_output(&pipeline.name, output_callback.as_ref().cloned(), log_callback.as_ref().cloned()).await?;
+            info!("Starting pipeline: {}", pipeline_name);
+            let result = self.execute_pipeline_with_realtime_output(&pipeline_name, output_callback.as_ref().cloned(), log_callback.as_ref().cloned()).await?;
             let success = result.overall_success;
             results.push(result);
-            
-            // 如果流水线失败，可以选择是否继续执行后续流水线
             if !success {
-                info!("Pipeline '{}' failed, stopping execution", pipeline.name);
+                info!("Pipeline '{}' failed, stopping execution", pipeline_name);
                 break;
             }
-            
-            info!("Pipeline '{}' completed successfully", pipeline.name);
+            info!("Pipeline '{}' completed successfully", pipeline_name);
         }
         
         Ok(results)
     }
 
     /// 执行指定的流水线（原有方法，保持兼容性）
-    pub async fn execute_pipeline(&self, pipeline_name: &str) -> Result<PipelineExecutionResult> {
+    pub async fn execute_pipeline(&mut self, pipeline_name: &str) -> Result<PipelineExecutionResult> {
         self.execute_pipeline_with_realtime_output(pipeline_name, None, None).await
     }
 
     /// 执行单个步骤（支持实时输出）
     async fn execute_step_with_realtime_output(
-        &self, 
+        &mut self,
         step: &Step,
         pipeline_name: &str,
-        output_callback: Option<&OutputCallback>,
-        pipeline_variable_manager: &mut VariableManager
+        output_callback: Option<&OutputCallback>
     ) -> Result<Vec<StepExecutionResult>> {
         let start_time = std::time::Instant::now();
+        // Clone config at the start to avoid &self borrow conflicts
+        let config = self.config.clone();
+        let variable_manager = &mut self.variable_manager;
         
         // 检查是否有服务器配置
         if step.servers.is_empty() {
             // 本地执行
             info!("Executing step: {} locally (no servers specified)", step.name);
-            
             let output_callback = output_callback.cloned();
             let step_clone = step.clone();
             let pipeline_name = pipeline_name.to_string();
             let step_name = step.name.clone();
-            let variables = pipeline_variable_manager.get_variables().clone();
-
+            let variables = variable_manager.get_variables().clone();
             let execution_result = LocalExecutor::execute_script_with_realtime_output(
                 &step_clone,
                 &pipeline_name,
@@ -310,16 +306,13 @@ impl RemoteExecutor {
                 output_callback,
                 variables,
             ).await?;
-            
             let success = execution_result.success;
-            
             // 提取变量（如果有extract规则）
-            if let Some(extract_rules) = &step.extract {
-                if let Err(e) = pipeline_variable_manager.extract_variables(extract_rules, &execution_result) {
+            if let Some(extract_rules) = step.extract.clone() {
+                if let Err(e) = variable_manager.extract_variables(&extract_rules, &execution_result) {
                     info!("Failed to extract variables from step '{}': {}", step.name, e);
                 }
             }
-            
             let step_result = StepExecutionResult {
                 step_name: step.name.clone(),
                 server_name: "localhost".to_string(),
@@ -327,7 +320,6 @@ impl RemoteExecutor {
                 overall_success: success,
                 execution_time_ms: start_time.elapsed().as_millis() as u64,
             };
-            
             return Ok(vec![step_result]);
         }
         
@@ -336,21 +328,23 @@ impl RemoteExecutor {
 
         let mut step_results = Vec::new();
         let mut futures = Vec::new();
+        // 用于收集所有服务器提取到的变量 (变量名, 变量值)
+        let mut extracted_vars: Vec<(String, String)> = Vec::new();
 
         // 为每个服务器创建执行任务
-        for server_name in &step.servers {
-            if !self.client_exists(server_name) {
+        let server_names: Vec<String> = step.servers.clone();
+        for server_name in server_names {
+            if !config.clients.contains_key(&server_name) {
                 return Err(anyhow::anyhow!("Server '{}' not found in configuration", server_name));
             }
 
             // 克隆必要的数据以避免生命周期问题
-            let config = self.config.clone();
-            let server_name = server_name.clone();
+            let config = config.clone();
             let step_name = step.name.clone();
             let output_callback = output_callback.cloned();
             let clone_step = step.clone();
             let pipeline_name = pipeline_name.to_string();
-            let variable_manager = pipeline_variable_manager.clone();
+            let variable_manager = variable_manager.clone();
 
             let future = tokio::spawn(async move {
                 // 创建新的执行器实例
@@ -381,11 +375,16 @@ impl RemoteExecutor {
             match result {
                 Ok(Ok((server_name, execution_result))) => {
                     let success = execution_result.success;
-                    
                     // 提取变量（如果有extract规则）
-                    if let Some(extract_rules) = &step.extract {
-                        if let Err(e) = pipeline_variable_manager.extract_variables(extract_rules, &execution_result) {
+                    if let Some(extract_rules) = step.extract.clone() {
+                        // 提取变量到本地 map
+                        let mut temp_vm = VariableManager::new(None);
+                        if let Err(e) = temp_vm.extract_variables(&extract_rules, &execution_result) {
                             info!("Failed to extract variables from step '{}': {}", step.name, e);
+                        } else {
+                            for (k, v) in temp_vm.get_variables() {
+                                extracted_vars.push((k.clone(), v.clone()));
+                            }
                         }
                     }
                     
@@ -405,13 +404,17 @@ impl RemoteExecutor {
                 }
             }
         }
+        // 合并所有服务器提取到的变量到全局 variable_manager
+        for (k, v) in extracted_vars {
+            variable_manager.set_variable(k, v);
+        }
 
         Ok(step_results)
     }
 
     /// 执行单个步骤（原有方法，保持兼容性）
-    async fn execute_step(&self, step: &Step) -> Result<Vec<StepExecutionResult>> {
-        self.execute_step_with_realtime_output(step, "unknown", None, &mut VariableManager::new(None)).await
+    async fn execute_step(&mut self, step: &Step) -> Result<Vec<StepExecutionResult>> {
+        self.execute_step_with_realtime_output(step, "unknown", None).await
     }
 
     /// 在指定客户端执行shell脚本（支持实时输出）

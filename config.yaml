@@ -21,90 +21,18 @@ pipelines:
       - name: "get_system_info"
         script: "./scripts/get_system_info.sh"
         timeout_seconds: 5
-        servers:
-          - mac_server
         extract:
           - name: "os_version_num"
-            patterns: 
-              - "OS Version: (.+)"
-              - "(\\d+\\.\\d+\\.\\d+)"
+            patterns: ["(.+)"]
             source: "stdout"
-          - name: "os_version"
-            patterns: ["OS Version: (.+)"]
-            source: "stdout"
-          - name: "hostname"
-            patterns: ["Hostname: (.+)"]
-            source: "stdout"
-          - name: "current_user"
-            patterns: ["Current user: (.+)"]
-            source: "stdout"
-      
-      - name: "deploy_application"
-        script: "./scripts/deploy.sh"
-        timeout_seconds: 10
-        servers:
-          - mac_server
-        extract:
-          - name: "deploy_path"
-            patterns: ["Deployed to: (.+)"]
-            source: "stdout"
-          - name: "deploy_status"
-            patterns: ["Status: (.+)"]
-            source: "stdout"
-      
-      - name: "verify_deployment"
-        script: "./scripts/verify.sh"
+  - name: "deploy_app2"
+    steps:
+      - name: "get_system_info"
+        script: "./scripts/get_system_info.sh"
         timeout_seconds: 5
-        servers:
-          - mac_server
         extract:
-          - name: "service_status"
-            patterns: ["Service Status: (.+)"]
-            source: "stdout"
-          - name: "verification_time"
-            patterns: ["Verification completed at (.+)"]
-            source: "stdout"
-
-  - name: "install_docker"
-    steps:
-      - name: "mock install docker"
-        script: "./scripts/mock_install_docker.sh"
-        timeout_seconds: 3
-        servers:
-          - mac_server
-        extract:
-          - name: "docker_version"
-            patterns: ["Docker version: (.+)"]
-            source: "stdout"
-          - name: "install_path"
-            patterns: ["Installed to: (.+)"]
+          - name: "os_version_num"
+            patterns: ["(\\d)"]
             source: "stdout"
       
-      - name: "start_docker"
-        script: "./scripts/mock_start_docker.sh"
-        timeout_seconds: 3
-        servers:
-          - mac_server
-        extract:
-          - name: "docker_status"
-            patterns: ["Docker status: (.+)"]
-            source: "stdout"
-          - name: "docker_pid"
-            patterns: ["Docker PID: (\\d+)"]
-            source: "stdout"
-
-  - name: "install_docker_compose"
-    steps:
-      - name: "mock install docker compose"
-        script: "./scripts/mock_install_docker_compose.sh"
-        servers:
-          - mac_server
-        extract:
-          - name: "compose_version"
-            patterns: ["Docker Compose version: (.+)"]
-            source: "stdout"
-          - name: "compose_path"
-            patterns: ["Compose installed to: (.+)"]
-            source: "stdout"
-
 default_timeout: 60 
