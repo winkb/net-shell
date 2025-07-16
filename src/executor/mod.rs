@@ -371,13 +371,8 @@ impl RemoteExecutor {
                     config,
                     variable_manager,
                 };
-                match LocalExecutor::execute_script_with_realtime_output(
-                    &clone_step,
-                    &pipeline_name,
-                    &step_name,
-                    output_callback,
-                    variables,
-                ).await {
+
+                match executor.execute_script_with_realtime_output(&server_name, clone_step, &pipeline_name, output_callback).await {
                     Ok(result) => {
                         info!("Step '{}' on server '{}' completed with exit code: {}", 
                               step_name, server_name, result.exit_code);
@@ -388,6 +383,7 @@ impl RemoteExecutor {
                         Err(e)
                     }
                 }
+
             });
 
             futures.push(future);

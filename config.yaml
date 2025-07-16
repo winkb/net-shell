@@ -21,6 +21,8 @@ pipelines:
       - name: "get_system_info"
         script: "./scripts/get_system_info.sh"
         timeout_seconds: 5
+        servers:
+          - mac_server
         variables:
           foo: "bar"
         extract:
