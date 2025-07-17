@@ -118,9 +118,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("[VARS] Current variables: {:?}", event.variables);
         }
         
-        // 显示步骤详细信息（如果有）
-        println!("[STEP] Step details: name={}, script={}, servers={:?}, timeout={:?}, extract_rules={:?}", 
-                step.name, step.script, step.servers, step.timeout_seconds, step.extract);
     });
 
     // 执行所有流水线

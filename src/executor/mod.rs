@@ -142,11 +142,6 @@ impl RemoteExecutor {
             // 添加步骤结果
             all_step_results.extend(step_results);
 
-            // 移除 step 级变量，避免污染后续 step
-            for k in step_var_keys {
-                self.variable_manager.remove_variable(&k);
-            }
-
             // 发送步骤完成事件
             if let Some(callback) = &output_callback {
                 let status = if step_success { "成功" } else { "失败" };
@@ -155,21 +150,6 @@ impl RemoteExecutor {
                     server_name: "system".to_string(),
                     step: step.clone(), // 传递完整的Step对象
                     output_type: crate::models::OutputType::StepCompleted,
-                    content: format!("步骤完成: {} ({})", step.name, status),
-                    timestamp: std::time::Instant::now(),
-                    variables: self.variable_manager.get_variables().clone(),
-                };
-                callback(event);
-            }
-
-            // 发送步骤完成日志
-            if let Some(callback) = &log_callback {
-                let status = if step_success { "成功" } else { "失败" };
-                let event = OutputEvent {
-                    pipeline_name: pipeline_name.clone(),
-                    server_name: "system".to_string(),
-                    step: step.clone(), // 传递完整的Step对象
-                    output_type: crate::models::OutputType::Log,
                     content: format!("步骤完成: {} ({})", step.name, status),
                     timestamp: std::time::Instant::now(),
                     variables: self.variable_manager.get_variables().clone(),
@@ -345,6 +325,7 @@ impl RemoteExecutor {
         let mut futures = Vec::new();
         // 用于收集所有服务器提取到的变量 (变量名, 变量值)
         let mut extracted_vars: Vec<(String, String)> = Vec::new();
+        let clone_variable_manager = variable_manager.clone();
 
         // 为每个服务器创建执行任务
         let server_names: Vec<String> = step.servers.clone();
@@ -359,17 +340,15 @@ impl RemoteExecutor {
             let output_callback = output_callback.cloned();
             let clone_step = step.clone();
             let pipeline_name = pipeline_name.to_string();
-            let variable_manager = variable_manager.clone();
-            // 注入 pipeline_name 和 step_name
-            let mut variables = variable_manager.get_variables().clone();
-            variables.insert("pipeline_name".to_string(), pipeline_name.clone());
-            variables.insert("step_name".to_string(), step_name.clone());
+            let mut clone_variable_manager = clone_variable_manager.clone();
+            clone_variable_manager.set_variable("pipeline_name".to_string(), pipeline_name.clone());
+            clone_variable_manager.set_variable("step_name".to_string(), step_name.clone());
 
             let future = tokio::spawn(async move {
                 // 创建新的执行器实例
                 let executor = RemoteExecutor { 
                     config,
-                    variable_manager,
+                    variable_manager:clone_variable_manager,
                 };
 
                 match executor.execute_script_with_realtime_output(&server_name, clone_step, &pipeline_name, output_callback).await {
