@@ -38,6 +38,10 @@ impl SshExecutor {
         // 读取本地脚本内容并替换变量
         let script_content = std::fs::read_to_string(script_path)
             .context(format!("Failed to read script file: {}", script_path))?;
+
+        variable_manager.set_variable("ssh_server_name".to_string(), server_name.to_string());
+        variable_manager.set_variable("ssh_server_ip".to_string(), ssh_config.host.to_string());
+
         let script_content = variable_manager.replace_variables(&script_content);
 
         // 设置连接超时
