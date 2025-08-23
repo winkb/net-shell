@@ -56,6 +56,7 @@ fn default_cascade() -> bool {
 /// 步骤配置
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Step {
+    pub title: Option<String>,
     pub name: String,
     pub script: String,
     #[serde(default)]
@@ -70,6 +71,7 @@ pub struct Step {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Pipeline {
     pub name: String,
+    pub title: Option<String>,
     pub steps: Vec<Step>,
 }
 
@@ -122,6 +124,7 @@ pub struct ExecutionResult {
 /// 步骤执行结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StepExecutionResult {
+    pub title: String,
     pub step_name: String,
     pub server_name: String,
     pub execution_result: ExecutionResult,
@@ -133,6 +136,7 @@ pub struct StepExecutionResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PipelineExecutionResult {
     pub pipeline_name: String,
+    pub title: String,
     pub step_results: Vec<StepExecutionResult>,
     pub overall_success: bool,
     pub total_execution_time_ms: u64,

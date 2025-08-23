@@ -185,6 +185,7 @@ impl RemoteExecutor {
         }
 
         Ok(PipelineExecutionResult {
+            title: pipeline.title.clone().unwrap_or(pipeline_name.clone()),
             pipeline_name: pipeline_name.clone(),
             step_results: all_step_results,
             overall_success,
@@ -309,6 +310,7 @@ impl RemoteExecutor {
                 }
             }
             let step_result = StepExecutionResult {
+                title: step.title.clone().unwrap_or(step.name.clone()),
                 step_name: step.name.clone(),
                 server_name: "localhost".to_string(),
                 execution_result,
@@ -389,6 +391,7 @@ impl RemoteExecutor {
                     }
                     
                     step_results.push(StepExecutionResult {
+                        title: step.title.clone().unwrap_or(step.name.clone()),
                         step_name: step.name.clone(),
                         server_name,
                         execution_result,

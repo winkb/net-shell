@@ -126,7 +126,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 打印执行结果摘要
     println!("\n=== 执行结果摘要 ===");
     for result in &results {
-        println!("\n流水线: {} ({})", result.pipeline_name, 
+        println!("\n流水线: {} ({})", result.title, 
                  if result.overall_success { "成功" } else { "失败" });
         println!("总执行时间: {}ms", result.total_execution_time_ms);
         println!("步骤结果:");
@@ -135,8 +135,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let status = if step_result.execution_result.success { "✅" } else { "❌" };
             println!("  {} [{}:{}] {} - {}ms", 
                      status,
-                     result.pipeline_name,
-                     step_result.step_name,
+                     result.title,
+                     step_result.title,
                      step_result.server_name,
                      step_result.execution_result.execution_time_ms);
         }
