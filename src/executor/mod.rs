@@ -491,7 +491,7 @@ impl RemoteExecutor {
                 variable_manager,
                 extract_rules
             )
-        }).await?.context(format!("join faield")) {
+        }).await?.context(format!("run script faield")) {
             Ok(v) => v,
             Err(e) => {
 
@@ -499,7 +499,7 @@ impl RemoteExecutor {
                 return Ok(ExecutionResult{
                     success: false,
                     stdout: "".to_string(),
-                    stderr: "".to_string(),
+                    stderr: format!("{:?}", e),
                     script: script_content,
                     exit_code: 0,
                     execution_time_ms: execution_time,
