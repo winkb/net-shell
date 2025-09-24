@@ -121,8 +121,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // 执行所有流水线
-    let results = executor.execute_all_pipelines_with_realtime_output(Some(output_callback.clone()), Some(output_callback)).await?;
-    
+    let res= executor.execute_all_pipelines_with_realtime_output(Some(output_callback.clone()), Some(output_callback)).await?;
+    let results = res.pipeline_results;
+ 
     // 打印执行结果摘要
     println!("\n=== 执行结果摘要 ===");
     for result in &results {
@@ -154,6 +155,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n=== 总体统计 ===");
     println!("流水线: {}/{} 成功", successful_pipelines, total_pipelines);
     println!("步骤: {}/{} 成功", successful_steps, total_steps);
+
+    if !res.success {
+        println!("执行失败: {}", res.reason);
+        return Ok(());
+    }
     
     Ok(())
 } 

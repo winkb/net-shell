@@ -6,3 +6,5 @@ echo "Hostname: $(hostname)"
 echo "Current user: $(whoami)"
 echo "System uptime: $(uptime)" 
 echo "foo== {{ foo }}"
+
+sleep 2

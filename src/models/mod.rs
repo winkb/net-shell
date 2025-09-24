@@ -141,3 +141,11 @@ pub struct PipelineExecutionResult {
     pub overall_success: bool,
     pub total_execution_time_ms: u64,
 } 
+
+/// 流水线执行结果
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ShellExecutionResult {
+    pub pipeline_results: Vec<PipelineExecutionResult>,
+    pub success: bool,
+    pub reason: String,
+} 

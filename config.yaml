@@ -13,7 +13,7 @@ clients:
       port: 22
       username: "li"
       private_key_path: "/Users/li/.ssh/id_rsa"
-      timeout_seconds: 2 
+      timeout_seconds: 1 
 
 pipelines:
   - name: "deploy_app"
@@ -22,7 +22,7 @@ pipelines:
       - name: "get_system_info"
         title: "获取系统信息"
         script: "./scripts/get_system_info.sh"
-        timeout_seconds: 5
+        timeout_seconds: 1
         servers:
           - mac_server
         variables:

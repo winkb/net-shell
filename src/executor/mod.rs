@@ -12,6 +12,7 @@ use crate::models::{
 use crate::ssh::SshExecutor;
 use crate::ssh::local::LocalExecutor;
 use crate::vars::VariableManager;
+use crate::ShellExecutionResult;
 
 /// 远程执行器
 pub struct RemoteExecutor {
@@ -198,7 +199,7 @@ impl RemoteExecutor {
         &mut self, // 需要可变引用
         output_callback: Option<OutputCallback>,
         log_callback: Option<OutputCallback>
-    ) -> Result<Vec<PipelineExecutionResult>> {
+    ) -> Result<ShellExecutionResult> {
         let mut results = Vec::new();
         
         // 发送开始执行所有流水线的日志
@@ -254,7 +255,15 @@ impl RemoteExecutor {
                 callback(event);
             }
             info!("Starting pipeline: {}", pipeline_name);
-            let result = self.execute_pipeline_with_realtime_output(&pipeline_name, output_callback.as_ref().cloned(), log_callback.as_ref().cloned()).await?;
+
+            let result = match self.execute_pipeline_with_realtime_output(&pipeline_name, output_callback.as_ref().cloned(), log_callback.as_ref().cloned()).await {
+                Ok(v) => v,
+                Err(e) => return Ok(ShellExecutionResult{
+                    success: false,
+                    reason: format!("{:?}", e),
+                    pipeline_results: results,
+                }),
+            };
             let success = result.overall_success;
             results.push(result);
             if !success {
@@ -264,7 +273,11 @@ impl RemoteExecutor {
             info!("Pipeline '{}' completed successfully", pipeline_name);
         }
         
-        Ok(results)
+        Ok(ShellExecutionResult{
+            success: true,
+            reason: "ok".to_string(),
+            pipeline_results: results,
+        })
     }
 
     /// 执行指定的流水线（原有方法，保持兼容性）

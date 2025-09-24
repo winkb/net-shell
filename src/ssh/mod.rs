@@ -45,14 +45,14 @@ impl SshExecutor {
         let script_content = variable_manager.replace_variables(&script_content);
 
         // 设置连接超时
-        let timeout_seconds = step.timeout_seconds
-            .or(ssh_config.timeout_seconds)
-            .unwrap_or(3);
-        let timeout_duration = Duration::from_secs(timeout_seconds);
-        
+        let ssh_timeout_seconds = ssh_config.timeout_seconds.unwrap_or(3);
+        let ssh_timeout_duration = Duration::from_secs(ssh_timeout_seconds);
+
         // 建立TCP连接（带严格超时）
-        let tcp = connect_with_timeout(&format!("{}:{}", ssh_config.host, ssh_config.port), timeout_duration)
+        let tcp = connect_with_timeout(&format!("{}:{}", ssh_config.host, ssh_config.port), ssh_timeout_duration)
             .context("Failed to connect to SSH server")?;
+
+        let timeout_duration = Duration::from_secs(step.timeout_seconds.unwrap_or(30));
         
         // 设置TCP连接超时
         tcp.set_read_timeout(Some(timeout_duration))
