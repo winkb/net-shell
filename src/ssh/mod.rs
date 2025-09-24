@@ -75,7 +75,7 @@ impl SshExecutor {
         
         // SSH握手（带超时）
         sess.handshake()
-            .context("SSH handshake failed")?;
+            .context(format!("SSH handshake failed: timeout {} s", ssh_timeout_seconds))?;
 
         info!("SSH handshake completed, starting authentication");
 

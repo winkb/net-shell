@@ -258,11 +258,13 @@ impl RemoteExecutor {
 
             let result = match self.execute_pipeline_with_realtime_output(&pipeline_name, output_callback.as_ref().cloned(), log_callback.as_ref().cloned()).await {
                 Ok(v) => v,
-                Err(e) => return Ok(ShellExecutionResult{
-                    success: false,
-                    reason: format!("{:?}", e),
-                    pipeline_results: results,
-                }),
+                Err(e) => {
+                    return Ok(ShellExecutionResult{
+                        success: false,
+                        reason: format!("{:?}", e),
+                        pipeline_results: results,
+                    })
+                },
             };
             let success = result.overall_success;
             results.push(result);
@@ -487,7 +489,7 @@ impl RemoteExecutor {
         let clone_ssh_config = ssh_config.clone();
 
         // 在tokio的阻塞线程池中执行SSH操作
-        let result = tokio::task::spawn_blocking(move || {
+        let result = match tokio::task::spawn_blocking(move || {
             SshExecutor::execute_script_with_realtime_output(
                 &server_name, 
                 &ssh_config, 
@@ -498,7 +500,22 @@ impl RemoteExecutor {
                 variable_manager,
                 extract_rules
             )
-        }).await?.context(format!("{:#?}", clone_ssh_config))?;
+        }).await?.context(format!("join faield")) {
+            Ok(v) => v,
+            Err(e) => {
+
+                let execution_time = start_time.elapsed().as_millis() as u64;
+                return Ok(ExecutionResult{
+                    success: false,
+                    stdout: "".to_string(),
+                    stderr: "".to_string(),
+                    script: script_content,
+                    exit_code: 0,
+                    execution_time_ms: execution_time,
+                    error_message: Some(format!("{:?}", e)),
+                });
+            }
+        };
 
         let execution_time = start_time.elapsed().as_millis() as u64;
 
