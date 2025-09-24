@@ -256,16 +256,7 @@ impl RemoteExecutor {
             }
             info!("Starting pipeline: {}", pipeline_name);
 
-            let result = match self.execute_pipeline_with_realtime_output(&pipeline_name, output_callback.as_ref().cloned(), log_callback.as_ref().cloned()).await {
-                Ok(v) => v,
-                Err(e) => {
-                    return Ok(ShellExecutionResult{
-                        success: false,
-                        reason: format!("{:?}", e),
-                        pipeline_results: results,
-                    })
-                },
-            };
+            let result = self.execute_pipeline_with_realtime_output(&pipeline_name, output_callback.as_ref().cloned(), log_callback.as_ref().cloned()).await?;
             let success = result.overall_success;
             results.push(result);
             if !success {

@@ -134,12 +134,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         for step_result in &result.step_results {
             let status = if step_result.execution_result.success { "✅" } else { "❌" };
-            println!("  {} [{}:{}] {} - {}ms", 
+            println!("  {} [{}:{}] {} - {}ms, {}", 
                      status,
                      result.title,
                      step_result.title,
                      step_result.server_name,
-                     step_result.execution_result.execution_time_ms);
+                     step_result.execution_result.execution_time_ms,
+                     step_result.execution_result.error_message.clone().unwrap_or_default(),
+                    );
         }
     }
     
