@@ -17,7 +17,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-net-shell = "0.2.0"
+net-shell = "0.3.3"
 ```
 
 Or install the binary:
@@ -26,6 +26,8 @@ Or install the binary:
 cargo install net-shell
 ```
 
+Note: the installed executable is named `main`. Run it directly with `main` (if your PATH includes Cargo's bin dir), or use `cargo run` as shown below.
+
 ## Quick Start
 
 ### Basic Configuration
@@ -33,11 +35,16 @@ cargo install net-shell
 Create a `config.yaml` file:
 
 ```yaml
+# Global scripts sourced before running steps
+global_scripts:
+  - "{{ script_dir }}/global.sh"
+
 # Global variables
 variables:
   master_ip: "192.168.0.199"
   app_name: "myapp"
   version: "1.0.0"
+  script_dir: "./scripts"
 
 # SSH client configurations
 clients:
@@ -75,7 +82,7 @@ pipelines:
           - name: "current_user"
             patterns: ["Current user: (.+)"]
             source: "stdout"
-      
+     
       - name: "deploy_application"
         script: "./scripts/deploy.sh"
         timeout_seconds: 10
@@ -88,7 +95,7 @@ pipelines:
           - name: "deploy_status"
             patterns: ["Status: (.+)"]
             source: "stdout"
-      
+     
       - name: "verify_deployment"
         script: "./scripts/verify.sh"
         timeout_seconds: 5
@@ -116,7 +123,7 @@ pipelines:
           - name: "install_path"
             patterns: ["Installed to: (.+)"]
             source: "stdout"
-      
+     
       - name: "start_docker"
         script: "./scripts/mock_start_docker.sh"
         timeout_seconds: 3
@@ -200,7 +207,7 @@ cargo run
 Or specify a custom configuration file:
 
 ```bash
-cargo run config_custom.yaml
+cargo run -- config_custom.yaml
 ```
 
 ### Programmatic Usage
