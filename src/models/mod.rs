@@ -82,6 +82,7 @@ pub struct RemoteExecutionConfig {
     pub clients: HashMap<String, ClientConfig>,
     pub pipelines: Vec<Pipeline>,
     pub default_timeout: Option<u64>,
+    pub global_scripts:Vec<String>
 }
 
 /// 实时输出类型

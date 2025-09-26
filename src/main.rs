@@ -65,6 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut variables = HashMap::new();
     variables.insert("new_master_ip".to_string(), "192.168.1.100".to_string());
+    variables.insert("script_dir".to_string(), "./scripts".to_string());
 
     // 创建执行器
     let mut executor = RemoteExecutor::from_yaml_file(config_path, Some(variables))?;

@@ -1,4 +1,4 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Error, Result};
 use std::process::{Command, Stdio};
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -15,6 +15,7 @@ pub struct LocalExecutor;
 impl LocalExecutor {
     /// 在本地执行shell脚本（支持实时输出）
     pub async fn execute_script_with_realtime_output(
+        global_scripts:Vec<String>,
         step: &Step,
         pipeline_name: &str,
         _step_name: &str,
@@ -24,12 +25,7 @@ impl LocalExecutor {
         let start_time = Instant::now();
         let pipeline_name = pipeline_name.to_string();
         
-        // 替换 script 路径中的 {{ 变量 }} 占位符
-        let mut script_path_str = step.script.clone();
-        for (key, value) in &variables {
-            let placeholder = format!("{{{{ {} }}}}", key);
-            script_path_str = script_path_str.replace(&placeholder, value);
-        }
+        let script_path_str = step.script.clone();
         let script_path = std::path::Path::new(&script_path_str);
         if !script_path.exists() {
             return Err(anyhow::anyhow!("Script '{}' not found", script_path_str));
@@ -42,6 +38,31 @@ impl LocalExecutor {
             let placeholder = format!("{{{{ {} }}}}", key);
             script_content = script_content.replace(&placeholder, value);
         }
+
+        let mut gloabl_script_content = global_scripts.iter()
+        .map(|v|std::fs::read_to_string(v).context(format!("read file:[{}]", v)))
+        .fold(Ok("".to_string()), |p:Result<String>,v|{
+            if p.is_err(){
+                return p;
+            }
+
+            if v.is_err(){
+                return Err(Error::msg(format!("{:?}", v.err())));
+            }
+            let content = v.unwrap();
+
+            let mut s = p.unwrap_or_default();
+
+            s.push_str("\n");
+            s.push_str(&content);
+
+            return  Ok(s.clone());
+        })?;
+
+        gloabl_script_content.push_str("\n");
+        gloabl_script_content.push_str(&script_content);
+
+        let script_content = gloabl_script_content.clone();
 
         // 写入临时文件
         let mut temp_file = tempfile::NamedTempFile::new()

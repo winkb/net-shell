@@ -1,6 +1,6 @@
 pub mod local;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Error, Result};
 use ssh2::Session;
 use std::io::{BufRead, BufReader};
 use std::net::TcpStream;
@@ -22,6 +22,7 @@ pub struct SshExecutor;
 impl SshExecutor {
     /// 通过SSH执行脚本（支持实时输出）
     pub fn execute_script_with_realtime_output(
+        global_scripts:Arc<Vec<String>>,
         server_name: &str,
         ssh_config: &SshConfig, 
         step: &Step,
@@ -35,9 +36,35 @@ impl SshExecutor {
 
         // 只用step.script作为脚本路径，不做参数处理
         let script_path = step.script.as_str();
+
         // 读取本地脚本内容并替换变量
         let script_content = std::fs::read_to_string(script_path)
             .context(format!("Failed to read script file: {}", script_path))?;
+
+        let mut gloabl_script_content = global_scripts.iter()
+        .map(|v|std::fs::read_to_string(v).context(format!("read file:[{}]", v)))
+        .fold(Ok("".to_string()), |p:Result<String>,v|{
+            if p.is_err(){
+                return p;
+            }
+
+            if v.is_err(){
+                return Err(Error::msg(format!("{:?}", v.err())));
+            }
+            let content = v.unwrap();
+
+            let mut s = p.unwrap_or_default();
+
+            s.push_str("\n");
+            s.push_str(&content);
+
+            return  Ok(s.clone());
+        })?;
+
+        gloabl_script_content.push_str("\n");
+        gloabl_script_content.push_str(&script_content);
+
+        let script_content = gloabl_script_content.clone();
 
         variable_manager.set_variable("ssh_server_name".to_string(), server_name.to_string());
         variable_manager.set_variable("ssh_server_ip".to_string(), ssh_config.host.to_string());

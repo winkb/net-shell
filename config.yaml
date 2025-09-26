@@ -1,6 +1,8 @@
 # 不要更改这个配置文件
+global_scripts: 
+  - "{{ script_dir }}/global.sh"
 variables:
-  master_ip: "112.168.0.199"
+  master_ip: "192.168.0.199"
   app_name: "myapp"
   version: "1.0.0"
 
@@ -21,7 +23,7 @@ pipelines:
     steps:
       - name: "get_system_info"
         title: "获取系统信息"
-        script: "./scripts/get_system_info.sh"
+        script: "{{ script_dir }}/get_system_info.sh"
         timeout_seconds: 3
         servers:
           - mac_server
@@ -36,7 +38,7 @@ pipelines:
     steps:
       - name: "get_system_info"
         title: "获取系统信息"
-        script: "./scripts/get_system_info.sh"
+        script: "{{ script_dir }}/get_system_info.sh"
         timeout_seconds: 5
         variables:
           foo: "bar2"
