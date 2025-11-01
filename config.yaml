@@ -25,8 +25,8 @@ pipelines:
         title: "获取系统信息"
         script: "{{ script_dir }}/get_system_info.sh"
         timeout_seconds: 3
-        servers:
-          - mac_server
+        # servers:
+        #   - mac_server
         variables:
           foo: "bar"
         extract:

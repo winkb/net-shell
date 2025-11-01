@@ -83,40 +83,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         event.content);
             }
             models::OutputType::Stderr => {
-                eprintln!("[STDERR] {}@{}@{}: {}, script:[{}]", 
-                         event.pipeline_name,
-                         step.name,
-                         event.server_name, 
-                         event.content,
-                         event.step.script
-                        );
+                // eprintln!("[STDERR] {}@{}@{}: {}, script:[{}]", 
+                //          event.pipeline_name,
+                //          step.name,
+                //          event.server_name, 
+                //          event.content,
+                //          event.step.script
+                //         );
             }
             models::OutputType::Log => {
-                println!("[LOG] {}@{}@{}: {}", 
-                        event.pipeline_name,
-                        step.name,
-                        event.server_name, 
-                        event.content);
+                // println!("[LOG] {}@{}@{}: {}", 
+                //         event.pipeline_name,
+                //         step.name,
+                //         event.server_name, 
+                //         event.content);
             }
             models::OutputType::StepStarted => {
-                println!("🚀 [STEP_STARTED] {}@{}@{}: {}", 
-                        event.pipeline_name,
-                        step.name,
-                        event.server_name, 
-                        event.content);
+                // println!("🚀 [STEP_STARTED] {}@{}@{}: {}", 
+                //         event.pipeline_name,
+                //         step.name,
+                //         event.server_name, 
+                //         event.content);
             }
             models::OutputType::StepCompleted => {
-                println!("✅ [STEP_COMPLETED] {}@{}@{}: {}", 
-                        event.pipeline_name,
-                        step.name,
-                        event.server_name, 
-                        event.content);
+                // println!("✅ [STEP_COMPLETED] {}@{}@{}: {}", 
+                //         event.pipeline_name,
+                //         step.name,
+                //         event.server_name, 
+                //         event.content);
             }
         }
         
         // 显示当前变量状态
         if !event.variables.is_empty() {
-            println!("[VARS] Current variables: {:?}", event.variables);
+            // println!("[VARS] Current variables: {:?}", event.variables);
         }
         
     });

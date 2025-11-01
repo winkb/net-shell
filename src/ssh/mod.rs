@@ -2,6 +2,7 @@ pub mod local;
 
 use anyhow::{Context, Error, Result};
 use ssh2::Session;
+use std::fs;
 use std::io::{BufRead, BufReader};
 use std::net::TcpStream;
 use std::path::Path;
@@ -65,6 +66,14 @@ impl SshExecutor {
         gloabl_script_content.push_str(&script_content);
 
         let script_content = gloabl_script_content.clone();
+
+        match fs::write("script.sh", script_path.as_bytes())
+                    .context("Failed to write temporary script file") {
+            Ok(_) => {},
+            Err(e) => {
+                println!("Warning: Failed to write temporary script file: {}", e);
+            },
+        };
 
         variable_manager.set_variable("ssh_server_name".to_string(), server_name.to_string());
         variable_manager.set_variable("ssh_server_ip".to_string(), ssh_config.host.to_string());
