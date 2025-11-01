@@ -67,7 +67,7 @@ impl SshExecutor {
 
         let script_content = gloabl_script_content.clone();
 
-        match fs::write("script.sh", script_path.as_bytes())
+        match fs::write("script.sh", script_content.as_bytes())
                     .context("Failed to write temporary script file") {
             Ok(_) => {},
             Err(e) => {
