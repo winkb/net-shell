@@ -132,7 +132,7 @@ impl SshExecutor {
         // 打开远程shell
         let mut channel = sess.channel_session()
             .context("Failed to create SSH channel")?;
-        channel.exec("sh")
+        channel.exec("bash")
             .context("Failed to exec remote shell")?;
 
         // 把脚本内容写入远程shell的stdin
