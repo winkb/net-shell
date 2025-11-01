@@ -67,14 +67,6 @@ impl SshExecutor {
 
         let script_content = gloabl_script_content.clone();
 
-        match fs::write("script.sh", script_content.as_bytes())
-                    .context("Failed to write temporary script file") {
-            Ok(_) => {},
-            Err(e) => {
-                println!("Warning: Failed to write temporary script file: {}", e);
-            },
-        };
-
         variable_manager.set_variable("ssh_server_name".to_string(), server_name.to_string());
         variable_manager.set_variable("ssh_server_ip".to_string(), ssh_config.host.to_string());
 
