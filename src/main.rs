@@ -76,20 +76,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         match event.output_type {
             models::OutputType::Stdout => {
-                println!("[STDOUT] {}@{}@{}: {}", 
-                        event.pipeline_name,
-                        step.name,
-                        event.server_name, 
-                        event.content);
+                // println!("[STDOUT] {}@{}@{}: {}", 
+                //         event.pipeline_name,
+                //         step.name,
+                //         event.server_name, 
+                //         event.content);
             }
             models::OutputType::Stderr => {
-                // eprintln!("[STDERR] {}@{}@{}: {}, script:[{}]", 
-                //          event.pipeline_name,
-                //          step.name,
-                //          event.server_name, 
-                //          event.content,
-                //          event.step.script
-                //         );
+                eprintln!("[STDERR] {}@{}@{}: {}, script:[{}]", 
+                         event.pipeline_name,
+                         step.name,
+                         event.server_name, 
+                         event.content,
+                         event.step.script
+                        );
             }
             models::OutputType::Log => {
                 // println!("[LOG] {}@{}@{}: {}", 
@@ -99,11 +99,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 //         event.content);
             }
             models::OutputType::StepStarted => {
-                // println!("🚀 [STEP_STARTED] {}@{}@{}: {}", 
-                //         event.pipeline_name,
-                //         step.name,
-                //         event.server_name, 
-                //         event.content);
+                println!("🚀 {}:{}", 
+                        event.pipeline_name,
+                        event.script_path,
+                        );
             }
             models::OutputType::StepCompleted => {
                 // println!("✅ [STEP_COMPLETED] {}@{}@{}: {}", 
@@ -135,13 +134,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         
         for step_result in &result.step_results {
             let status = if step_result.execution_result.success { "✅" } else { "❌" };
-            println!("  {} [{}:{}] {} - {}ms, {}", 
+            println!("  {} [{}:{}] {} - {}ms, {} {}", 
                      status,
                      result.title,
                      step_result.title,
                      step_result.server_name,
                      step_result.execution_result.execution_time_ms,
                      step_result.execution_result.error_message.clone().unwrap_or_default(),
+                     step_result.scritp_path
                     );
         }
     }

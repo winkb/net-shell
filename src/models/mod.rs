@@ -102,6 +102,7 @@ pub struct OutputEvent {
     pub server_name: String,
     pub step: Step, // 替换step_name为完整的Step对象，方便排错
     pub output_type: OutputType,
+    pub script_path:String,
     pub content: String,
     pub timestamp: std::time::Instant,
     pub variables: HashMap<String, String>, // 添加当前变量上下文
@@ -130,6 +131,7 @@ pub struct StepExecutionResult {
     pub server_name: String,
     pub execution_result: ExecutionResult,
     pub overall_success: bool,
+    pub scritp_path:String,
     pub execution_time_ms: u64,
 }
 

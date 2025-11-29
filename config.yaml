@@ -33,18 +33,14 @@ pipelines:
           - name: "os_version_num"
             patterns: ["(.+)"]
             source: "stdout"
-  # - name: "deploy_app2"
-  #   title: "部署应用2"
-  #   steps:
-  #     - name: "get_system_info"
-  #       title: "获取系统信息"
-  #       script: "{{ script_dir }}/get_system_info.sh"
-  #       timeout_seconds: 5
-  #       variables:
-  #         foo: "bar2"
-  #       extract:
-  #         - name: "os_version_num"
-  #           patterns: ["(\\d)"]
-  #           source: "stdout"
+  - name: "deploy_app2"
+    title: "部署应用2"
+    steps:
+      - name: "get_system_info"
+        title: "获取系统信息"
+        script: "{{ script_dir }}/deploy.sh"
+        timeout_seconds: 5
+        variables:
+          foo: "bar2"
       
 default_timeout: 60 

@@ -2,13 +2,14 @@ pub mod local;
 
 use anyhow::{Context, Error, Result};
 use ssh2::Session;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{BufRead, BufReader};
 use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc as tokio_mpsc;
 use tracing::info;
 
@@ -36,7 +37,7 @@ impl SshExecutor {
         info!("Connecting to {}:{} as {}", ssh_config.host, ssh_config.port, ssh_config.username);
 
         // 只用step.script作为脚本路径，不做参数处理
-        let script_path = step.script.as_str();
+        let script_path = step.script.as_str(); 
 
         // 读取本地脚本内容并替换变量
         let script_content = std::fs::read_to_string(script_path)
@@ -171,6 +172,7 @@ impl SshExecutor {
                 pipeline_name: pipeline_name.clone(),
                 server_name: server_name.clone(),
                 step: step.clone(), // 传递完整的Step对象
+                script_path:step.script.to_string(),
                 output_type: OutputType::Stdout,
                 content: content.trim().to_string(),
                 timestamp: std::time::Instant::now(),
@@ -198,6 +200,7 @@ impl SshExecutor {
                 pipeline_name: pipeline_name.clone(),
                 server_name: server_name.clone(),
                 step: step.clone(), // 传递完整的Step对象
+                script_path:step.script.to_string(),
                 output_type: OutputType::Stderr,
                 content: content.trim().to_string(),
                 timestamp: std::time::Instant::now(),

@@ -80,6 +80,7 @@ impl RemoteExecutor {
             let event = OutputEvent {
                 pipeline_name: pipeline_name.clone(),
                 server_name: "system".to_string(),
+                script_path:"".to_string(),
                 step: Step::default(), // 流水线开始事件没有具体的步骤
                 output_type: crate::models::OutputType::Log,
                 content: format!("开始执行流水线: {}", pipeline_name),
@@ -112,6 +113,7 @@ impl RemoteExecutor {
                     server_name: "system".to_string(),
                     step: step.clone(), // 传递完整的Step对象
                     output_type: crate::models::OutputType::StepStarted,
+                    script_path:step.script.clone(),
                     content: format!("开始执行步骤: {} ({} 个服务器)", step.name, step.servers.len()),
                     timestamp: std::time::Instant::now(),
                     variables: self.variable_manager.get_variables().clone(),
@@ -125,6 +127,7 @@ impl RemoteExecutor {
                     pipeline_name: pipeline_name.clone(),
                     server_name: "system".to_string(),
                     step: step.clone(), // 传递完整的Step对象
+                    script_path:step.script.clone(),
                     output_type: crate::models::OutputType::Log,
                     content: format!("开始执行步骤: {} ({} 个服务器)", step.name, step.servers.len()),
                     timestamp: std::time::Instant::now(),
@@ -149,6 +152,7 @@ impl RemoteExecutor {
                 let status = if step_success { "成功" } else { "失败" };
                 let event = OutputEvent {
                     pipeline_name: pipeline_name.clone(),
+                    script_path:step.script.clone(),
                     server_name: "system".to_string(),
                     step: step.clone(), // 传递完整的Step对象
                     output_type: crate::models::OutputType::StepCompleted,
@@ -176,6 +180,7 @@ impl RemoteExecutor {
             let status = if overall_success { "成功" } else { "失败" };
             let event = OutputEvent {
                 pipeline_name: pipeline_name.clone(),
+                script_path:"".to_string(),
                 server_name: "system".to_string(),
                 step: Step::default(), // 流水线完成事件没有具体的步骤
                 output_type: crate::models::OutputType::Log,
@@ -208,6 +213,7 @@ impl RemoteExecutor {
             let event = OutputEvent {
                 pipeline_name: "system".to_string(),
                 server_name: "system".to_string(),
+                script_path :"".to_string(),
                 step: Step::default(), // 系统级别事件没有具体步骤
                 output_type: crate::models::OutputType::Log,
                 content: format!("=== 远程脚本执行器 ==="),
@@ -219,6 +225,7 @@ impl RemoteExecutor {
             let event = OutputEvent {
                 pipeline_name: "system".to_string(),
                 server_name: "system".to_string(),
+                script_path :"".to_string(),
                 step: Step::default(), // 系统级别事件没有具体步骤
                 output_type: crate::models::OutputType::Log,
                 content: format!("配置加载成功，发现 {} 个流水线", self.config.pipelines.len()),
@@ -229,6 +236,7 @@ impl RemoteExecutor {
             
             let event = OutputEvent {
                 pipeline_name: "system".to_string(),
+                script_path :"".to_string(),
                 server_name: "system".to_string(),
                 step: Step::default(), // 系统级别事件没有具体步骤
                 output_type: crate::models::OutputType::Log,
@@ -247,6 +255,7 @@ impl RemoteExecutor {
                 let event = OutputEvent {
                     pipeline_name: pipeline_name.clone(),
                     server_name: "system".to_string(),
+                    script_path :"".to_string(),
                     step: Step::default(), // 流水线开始事件没有具体的步骤
                     output_type: crate::models::OutputType::Log,
                     content: format!("开始执行流水线: {}", pipeline_name),
@@ -320,6 +329,7 @@ impl RemoteExecutor {
             let step_result = StepExecutionResult {
                 title: step.title.clone().unwrap_or(step.name.clone()),
                 step_name: step.name.clone(),
+                scritp_path:step.script.clone(),
                 server_name: "localhost".to_string(),
                 execution_result,
                 overall_success: success,
@@ -406,6 +416,7 @@ impl RemoteExecutor {
                         title: step.title.clone().unwrap_or(step.name.clone()),
                         step_name: step.name.clone(),
                         server_name,
+                        scritp_path:step.script.clone(),
                         execution_result,
                         overall_success: success,
                         execution_time_ms: start_time.elapsed().as_millis() as u64,

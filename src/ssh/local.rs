@@ -79,6 +79,7 @@ impl LocalExecutor {
                 pipeline_name: pipeline_name.clone(),
                 server_name: "localhost".to_string(),
                 step: step.clone(),
+                script_path:script_path_str.clone(),
                 output_type: OutputType::Log,
                 content: format!("开始执行本地脚本: {} (内容已变量替换)", script_path_str),
                 timestamp: Instant::now(),
@@ -119,6 +120,7 @@ impl LocalExecutor {
         let variables_clone2 = variables.clone();
         let output_callback_clone = output_callback.clone();
         let output_callback_clone2 = output_callback.clone();
+        let script_path = script_path_str.clone();
 
         // 创建输出读取任务
         let stdout_task = tokio::spawn(async move {
@@ -136,6 +138,7 @@ impl LocalExecutor {
                         pipeline_name: pipeline_name1.to_string(),
                         server_name: "localhost".to_string(),
                         step: step_clone.clone(),
+                        script_path:script_path.clone(),
                         output_type: OutputType::Stdout,
                         content: line,
                         timestamp: Instant::now(),
@@ -147,6 +150,7 @@ impl LocalExecutor {
             content
         });
 
+        let script_path = script_path_str.clone();
         let step_clone2 = step.clone();
         let stderr_task = tokio::spawn(async move {
             let reader = BufReader::new(stderr);
@@ -163,6 +167,7 @@ impl LocalExecutor {
                         pipeline_name: pipeline_name2.to_string(),
                         server_name: "localhost".to_string(),
                         step: step_clone2.clone(),
+                        script_path:script_path.clone(),
                         output_type: OutputType::Stderr,
                         content: line,
                         timestamp: Instant::now(),
@@ -213,6 +218,7 @@ impl LocalExecutor {
                 pipeline_name: pipeline_name.to_string(),
                 server_name: "localhost".to_string(),
                 step: step.clone(),
+                script_path:script_path_str.clone(),
                 output_type: OutputType::Log,
                 content: format!("本地脚本执行完成: {} ({}) - 耗时: {}ms", script_path_str, status, execution_time),
                 timestamp: Instant::now(),
