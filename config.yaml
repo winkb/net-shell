@@ -5,7 +5,6 @@ variables:
   master_ip: "192.168.0.199"
   app_name: "myapp"
   version: "1.0.0"
-
 clients:
   mac_server:
     name: "mac_server"
@@ -16,35 +15,21 @@ clients:
       username: "li"
       private_key_path: "/Users/li/.ssh/id_rsa"
       timeout_seconds: 1
-
 pipelines:
 #{% for item in items %}
-  - name: "{{ item }}"
-    title: ""
+  - name: "#{ item }"
+    title: "部署应用"
+    steps:
+      - name: "get_system_info"
+        title: "获取系统信息"
+        script: "{{ script_dir }}/get_system_info.sh"
+        timeout_seconds: 3
+        servers:
+          - mac_server
+        variables:
+          foo: "bar"
+        extract:
+          - name: "os_version_num"
+            patterns: ["(.+)"]
+            source: "stdout"
 #{% endfor %}
-#   - name: "deploy_app"
-#     title: "部署应用"
-#     steps:
-#       - name: "get_system_info"
-#         title: "获取系统信息"
-#         script: "{{ script_dir }}/get_system_info.sh"
-#         timeout_seconds: 3
-#         servers:
-#           - mac_server
-#         variables:
-#           foo: "bar"
-#         extract:
-#           - name: "os_version_num"
-#             patterns: ["(.+)"]
-#             source: "stdout"
-#   - name: "deploy_app2"
-#     title: "部署应用2"
-#     steps:
-#       - name: "get_system_info"
-#         title: "获取系统信息"
-#         script: "{{ script_dir }}/deploy.sh"
-#         timeout_seconds: 5
-#         variables:
-#           foo: "bar2"
-
-# default_timeout: 60

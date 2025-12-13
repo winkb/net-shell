@@ -8,8 +8,9 @@ pub mod vars;
 // 重新导出主要类型，方便外部使用
 pub use executor::RemoteExecutor;
 pub use models::*;
+use net_shell::TemplateEngine;
 
-use std::env;
+use std::{env, fs};
 use std::{collections::HashMap, sync::Arc};
 use tracing_subscriber;
 
@@ -74,6 +75,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut variables = HashMap::new();
     variables.insert("new_master_ip".to_string(), "192.168.1.100".to_string());
     variables.insert("script_dir".to_string(), "./scripts".to_string());
+
+    let mut t = TemplateEngine::with_all_delimiters("#{", "}", "#{%", "%}");
+    t.set_variable("items", vec!["apple", "banana", "cherry"]);
+
+    let template_content = fs::read_to_string(config_path)?;
+
+
+    let parsed_content = t.set_preserve_loop_newlines(false).render_string(template_content.as_str())?;
+
+    println!("Parsed YAML Content:\n{}", parsed_content);
 
     // 创建执行器
     let mut executor = RemoteExecutor::from_yaml_file(config_path, Some(variables))?;
