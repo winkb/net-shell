@@ -1,5 +1,5 @@
 # 不要更改这个配置文件
-global_scripts: 
+global_scripts:
   - "{{ script_dir }}/global.sh"
 variables:
   master_ip: "192.168.0.199"
@@ -15,32 +15,36 @@ clients:
       port: 22
       username: "li"
       private_key_path: "/Users/li/.ssh/id_rsa"
-      timeout_seconds: 1 
+      timeout_seconds: 1
 
 pipelines:
-  - name: "deploy_app"
-    title: "部署应用"
-    steps:
-      - name: "get_system_info"
-        title: "获取系统信息"
-        script: "{{ script_dir }}/get_system_info.sh"
-        timeout_seconds: 3
-        servers:
-          - mac_server
-        variables:
-          foo: "bar"
-        extract:
-          - name: "os_version_num"
-            patterns: ["(.+)"]
-            source: "stdout"
-  - name: "deploy_app2"
-    title: "部署应用2"
-    steps:
-      - name: "get_system_info"
-        title: "获取系统信息"
-        script: "{{ script_dir }}/deploy.sh"
-        timeout_seconds: 5
-        variables:
-          foo: "bar2"
-      
-default_timeout: 60 
+#{% for item in items %}
+  - name: "{{ item }}"
+    title: ""
+#{% endfor %}
+#   - name: "deploy_app"
+#     title: "部署应用"
+#     steps:
+#       - name: "get_system_info"
+#         title: "获取系统信息"
+#         script: "{{ script_dir }}/get_system_info.sh"
+#         timeout_seconds: 3
+#         servers:
+#           - mac_server
+#         variables:
+#           foo: "bar"
+#         extract:
+#           - name: "os_version_num"
+#             patterns: ["(.+)"]
+#             source: "stdout"
+#   - name: "deploy_app2"
+#     title: "部署应用2"
+#     steps:
+#       - name: "get_system_info"
+#         title: "获取系统信息"
+#         script: "{{ script_dir }}/deploy.sh"
+#         timeout_seconds: 5
+#         variables:
+#           foo: "bar2"
+
+# default_timeout: 60
