@@ -59,8 +59,9 @@ impl TemplateEngine {
         let var_regex = Regex::new(&var_pattern).unwrap();
 
         // for循环匹配正则：{% for item in items %}   ... {% endfor %}
+        // 支持split语法：{% for item in items split "," %}   ... {% endfor %}
         let for_pattern = format!(
-            r"(?s){}\s*for\s+(\w+)\s+in\s+(\w+)\s*{}(.*?){}\s*endfor\s*{}",
+            "(?s){}\\s*for\\s+(\\w+)\\s+in\\s+(\\w+)(?:\\s+split\\s+\"([^\"]+)\")?\\s*{}(.*?){}\\s*endfor\\s*{}",
             for_left_escaped, for_right_escaped, for_left_escaped, for_right_escaped
         );
         let for_regex = Regex::new(&for_pattern).unwrap();
@@ -171,63 +172,85 @@ impl TemplateEngine {
             let full_match = captures.get(0).unwrap().as_str();
             let item_name = captures.get(1).unwrap().as_str();
             let array_name = captures.get(2).unwrap().as_str();
-            let loop_content = captures.get(3).unwrap().as_str();
+            let split_delimiter = captures.get(3).map(|m| m.as_str());
+            let loop_content = captures.get(4).unwrap().as_str();
 
             let array_value = self
                 .variables
                 .get(array_name)
                 .ok_or_else(|| anyhow!("Array '{}' not found in variables", array_name))?;
 
-            if let serde_json::Value::Array(items) = array_value {
-                let mut loop_result = String::new();
-
-                for item in items {
-                    let mut temp_vars = self.variables.clone();
-                    temp_vars.insert(item_name.to_string(), item.clone());
-
-                    let temp_engine = Self {
-                        variables: temp_vars,
-                        template_dir: self.template_dir.clone(),
-                        left_delimiter: self.left_delimiter.clone(),
-                        right_delimiter: self.right_delimiter.clone(),
-                        for_left_delimiter: self.for_left_delimiter.clone(),
-                        for_right_delimiter: self.for_right_delimiter.clone(),
-                        preserve_loop_newlines: self.preserve_loop_newlines,
-                        var_regex: self.var_regex.clone(),
-                        for_regex: self.for_regex.clone(),
-                        include_regex: self.include_regex.clone(),
-                    };
-
-                    let mut rendered = temp_engine.process_variables(loop_content)?;
-
-                    // 如果不保留换行符，则去除循环产生的空行，但保留内容内的换行符和缩进
-                    if !self.preserve_loop_newlines {
-                        // 按行分割，过滤掉只包含空白字符的行
-                        let lines: Vec<&str> = rendered
-                            .lines()
-                            .filter(|line| !line.trim().is_empty())
-                            .collect();
-
-                        // 重新组合，保留原有的缩进和格式
-                        if !lines.is_empty() {
-                            rendered = lines.join("\n");
-
-                            // 如果不是第一个循环项，在前面添加换行符
-                            if !loop_result.is_empty() {
-                                loop_result.push_str("\n");
-                            }
-                        } else {
-                            rendered = String::new();
-                        }
+            // 根据是否有split参数处理不同的数据类型
+            let items: Vec<serde_json::Value> = if let Some(delimiter) = split_delimiter {
+                // 处理split操作
+                match array_value {
+                    serde_json::Value::String(s) => {
+                        s.split(delimiter)
+                            .map(|part| serde_json::Value::String(part.to_string()))
+                            .collect()
                     }
+                    _ => {
+                        return Err(anyhow!(
+                            "Cannot split non-string variable '{}'",
+                            array_name
+                        ))
+                    }
+                }
+            } else {
+                // 处理数组
+                if let serde_json::Value::Array(items) = array_value {
+                    items.clone()
+                } else {
+                    return Err(anyhow!("'{}' is not an array", array_name));
+                }
+            };
 
-                    loop_result.push_str(&rendered);
+            let mut loop_result = String::new();
+
+            for item in items {
+                let mut temp_vars = self.variables.clone();
+                temp_vars.insert(item_name.to_string(), item.clone());
+
+                let temp_engine = Self {
+                    variables: temp_vars,
+                    template_dir: self.template_dir.clone(),
+                    left_delimiter: self.left_delimiter.clone(),
+                    right_delimiter: self.right_delimiter.clone(),
+                    for_left_delimiter: self.for_left_delimiter.clone(),
+                    for_right_delimiter: self.for_right_delimiter.clone(),
+                    preserve_loop_newlines: self.preserve_loop_newlines,
+                    var_regex: self.var_regex.clone(),
+                    for_regex: self.for_regex.clone(),
+                    include_regex: self.include_regex.clone(),
+                };
+
+                let mut rendered = temp_engine.process_variables(loop_content)?;
+
+                // 如果不保留换行符，则去除循环产生的空行，但保留内容内的换行符和缩进
+                if !self.preserve_loop_newlines {
+                    // 按行分割，过滤掉只包含空白字符的行
+                    let lines: Vec<&str> = rendered
+                        .lines()
+                        .filter(|line| !line.trim().is_empty())
+                        .collect();
+
+                    // 重新组合，保留原有的缩进和格式
+                    if !lines.is_empty() {
+                        rendered = lines.join("\n");
+
+                        // 如果不是第一个循环项，在前面添加换行符
+                        if !loop_result.is_empty() {
+                            loop_result.push_str("\n");
+                        }
+                    } else {
+                        rendered = String::new();
+                    }
                 }
 
-                result = result.replace(full_match, &loop_result);
-            } else {
-                return Err(anyhow!("'{}' is not an array", array_name));
+                loop_result.push_str(&rendered);
             }
+
+            result = result.replace(full_match, &loop_result);
         }
 
         Ok(result)
@@ -435,5 +458,67 @@ mod tests {
 
         // 不应该有多余的空行
         assert!(result.contains("- a\n- b\n- c"));
+    }
+
+    #[test]
+    fn test_split_functionality() {
+        let mut engine = TemplateEngine::new();
+        engine.set_variable("csv_string", "apple,banana,cherry");
+
+        let template = r#"
+{% for fruit in csv_string split "," %}
+- {{ fruit }}
+{% endfor %}"#;
+
+        let result = engine
+            .set_preserve_loop_newlines(false)
+            .render_string(template)
+            .unwrap();
+        
+        let expected = r#"
+- apple
+- banana
+- cherry"#;
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_split_with_space_delimiter() {
+        let mut engine = TemplateEngine::new();
+        engine.set_variable("space_separated", "red green blue");
+
+        let template = r#"
+{% for color in space_separated split " " %}
+* {{ color }}
+{% endfor %}"#;
+
+        let result = engine
+            .set_preserve_loop_newlines(false)
+            .render_string(template)
+            .unwrap();
+        
+        assert!(result.contains("* red"));
+        assert!(result.contains("* green"));
+        assert!(result.contains("* blue"));
+    }
+
+    #[test]
+    fn test_split_with_complex_delimiter() {
+        let mut engine = TemplateEngine::new();
+        engine.set_variable("complex_string", "item1||item2||item3");
+
+        let template = r#"
+{% for item in complex_string split "||" %}
+{{ item }}
+{% endfor %}"#;
+
+        let result = engine
+            .set_preserve_loop_newlines(false)
+            .render_string(template)
+            .unwrap();
+        
+        assert!(result.contains("item1"));
+        assert!(result.contains("item2"));
+        assert!(result.contains("item3"));
     }
 }

@@ -5,6 +5,7 @@ variables:
   master_ip: "192.168.0.199"
   app_name: "myapp"
   version: "1.0.0"
+  scene_names: "scene1,scene2,scene3"
 clients:
   mac_server:
     name: "mac_server"
@@ -16,8 +17,8 @@ clients:
       private_key_path: "/Users/li/.ssh/id_rsa"
       timeout_seconds: 1
 pipelines:
-#{% for item in items %}
-  - name: "#{ item }"
+#{% for item in scene_names split "," %}
+  - name: "#{item}"
     title: "部署应用"
     steps:
       - name: "get_system_info"

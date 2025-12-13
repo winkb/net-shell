@@ -9,6 +9,7 @@ pub mod vars;
 pub use executor::RemoteExecutor;
 pub use models::*;
 use net_shell::TemplateEngine;
+use ssh2::DisconnectCode::AuthCancelledByUser;
 
 use std::{env, fs};
 use std::{collections::HashMap, sync::Arc};
@@ -77,17 +78,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     variables.insert("script_dir".to_string(), "./scripts".to_string());
 
     let mut t = TemplateEngine::with_all_delimiters("#{", "}", "#{%", "%}");
-    t.set_variable("items", vec!["apple", "banana", "cherry"]);
+
 
     let template_content = fs::read_to_string(config_path)?;
 
+    let data:RemoteExecutionConfig = serde_yaml::from_str(&template_content)?;
+
+    data.variables.unwrap_or_default().iter().for_each(|(k,v)|{
+        t.set_variable(k, v.as_str());
+    });
 
     let parsed_content = t.set_preserve_loop_newlines(false).render_string(template_content.as_str())?;
 
     println!("Parsed YAML Content:\n{}", parsed_content);
 
     // 创建执行器
-    let mut executor = RemoteExecutor::from_yaml_file(config_path, Some(variables))?;
+    let mut executor = RemoteExecutor::from_yaml_str(&parsed_content, Some(variables))?;
 
     // 定义实时输出回调函数
     let output_callback = Arc::new(|event: models::OutputEvent| {
