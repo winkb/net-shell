@@ -9,7 +9,6 @@ pub mod vars;
 pub use executor::RemoteExecutor;
 pub use models::*;
 use net_shell::TemplateEngine;
-use ssh2::DisconnectCode::AuthCancelledByUser;
 
 use std::{env, fs};
 use std::{collections::HashMap, sync::Arc};
@@ -17,7 +16,6 @@ use tracing_subscriber;
 
 #[cfg(test)]
 mod tests {
-    use tera::{Context, Tera};
 
     use super::*;
 
@@ -89,8 +87,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     let parsed_content = t.set_preserve_loop_newlines(false).render_string(template_content.as_str())?;
-
-    println!("Parsed YAML Content:\n{}", parsed_content);
 
     // 创建执行器
     let mut executor = RemoteExecutor::from_yaml_str(&parsed_content, Some(variables))?;

@@ -2,14 +2,12 @@ pub mod local;
 
 use anyhow::{Context, Error, Result};
 use ssh2::Session;
-use std::collections::HashMap;
-use std::fs;
 use std::io::{BufRead, BufReader};
 use std::net::TcpStream;
 use std::path::Path;
 use std::sync::Arc;
 use std::sync::mpsc;
-use std::time::{Duration, Instant};
+use std::time::{Duration};
 use tokio::sync::mpsc as tokio_mpsc;
 use tracing::info;
 
