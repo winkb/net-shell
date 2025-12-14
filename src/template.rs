@@ -60,8 +60,9 @@ impl TemplateEngine {
 
         // for循环匹配正则：{% for item in items %}   ... {% endfor %}
         // 支持split语法：{% for item in items split "," %}   ... {% endfor %}
+        // 支持jsonparse语法：{% for item in items jsonparse %}   ... {% endfor %}
         let for_pattern = format!(
-            "(?s){}\\s*for\\s+(\\w+)\\s+in\\s+(\\w+)(?:\\s+split\\s+\"([^\"]+)\")?\\s*{}(.*?){}\\s*endfor\\s*{}",
+            "(?s){}\\s*for\\s+(\\w+)\\s+in\\s+(\\w+)(?:\\s+(split|jsonparse)(?:\\s+\"([^\"]+)\")?)?\\s*{}(.*?){}\\s*endfor\\s*{}",
             for_left_escaped, for_right_escaped, for_left_escaped, for_right_escaped
         );
         let for_regex = Regex::new(&for_pattern).unwrap();
@@ -172,36 +173,80 @@ impl TemplateEngine {
             let full_match = captures.get(0).unwrap().as_str();
             let item_name = captures.get(1).unwrap().as_str();
             let array_name = captures.get(2).unwrap().as_str();
-            let split_delimiter = captures.get(3).map(|m| m.as_str());
-            let loop_content = captures.get(4).unwrap().as_str();
+            let operation = captures.get(3).map(|m| m.as_str());
+            let operation_param = captures.get(4).map(|m| m.as_str());
+            let loop_content = captures.get(5).unwrap().as_str();
 
             let array_value = self
                 .variables
                 .get(array_name)
                 .ok_or_else(|| anyhow!("Array '{}' not found in variables", array_name))?;
 
-            // 根据是否有split参数处理不同的数据类型
-            let items: Vec<serde_json::Value> = if let Some(delimiter) = split_delimiter {
-                // 处理split操作
-                match array_value {
-                    serde_json::Value::String(s) => {
-                        s.split(delimiter)
-                            .map(|part| serde_json::Value::String(part.to_string()))
-                            .collect()
-                    }
-                    _ => {
-                        return Err(anyhow!(
-                            "Cannot split non-string variable '{}'",
-                            array_name
-                        ))
+            // 根据操作类型处理不同的数据类型
+            let items: Vec<serde_json::Value> = match operation {
+                Some("split") => {
+                    // 处理split操作
+                    let delimiter = operation_param.ok_or_else(|| anyhow!("Split operation requires a delimiter"))?;
+                    match array_value {
+                        serde_json::Value::String(s) => {
+                            s.split(delimiter)
+                                .map(|part| serde_json::Value::String(part.to_string()))
+                                .collect()
+                        }
+                        _ => {
+                            return Err(anyhow!(
+                                "Cannot split non-string variable '{}'",
+                                array_name
+                            ))
+                        }
                     }
                 }
-            } else {
-                // 处理数组
-                if let serde_json::Value::Array(items) = array_value {
-                    items.clone()
-                } else {
-                    return Err(anyhow!("'{}' is not an array", array_name));
+                Some("jsonparse") => {
+                    // 处理jsonparse操作
+                    match array_value {
+                        serde_json::Value::String(s) => {
+                            let parsed: serde_json::Value = serde_json::from_str(s)
+                                .map_err(|e| anyhow!("Failed to parse JSON from variable '{}': {}", array_name, e))?;
+                            
+                            match parsed {
+                                serde_json::Value::Array(arr) => arr,
+                                serde_json::Value::Object(obj) => {
+                                    // 如果是对象，转换为键值对数组
+                                    obj.into_iter()
+                                        .map(|(k, v)| {
+                                            serde_json::json!({
+                                                "key": k,
+                                                "value": v
+                                            })
+                                        })
+                                        .collect()
+                                }
+                                _ => {
+                                    return Err(anyhow!(
+                                        "JSON must be an array or object for iteration, got: {}",
+                                        parsed
+                                    ))
+                                }
+                            }
+                        }
+                        _ => {
+                            return Err(anyhow!(
+                                "Cannot jsonparse non-string variable '{}'",
+                                array_name
+                            ))
+                        }
+                    }
+                }
+                None => {
+                    // 处理普通数组
+                    if let serde_json::Value::Array(items) = array_value {
+                        items.clone()
+                    } else {
+                        return Err(anyhow!("'{}' is not an array", array_name));
+                    }
+                }
+                _ => {
+                    return Err(anyhow!("Unknown operation: {}", operation.unwrap()));
                 }
             };
 
@@ -520,5 +565,101 @@ mod tests {
         assert!(result.contains("item1"));
         assert!(result.contains("item2"));
         assert!(result.contains("item3"));
+    }
+
+    #[test]
+    fn test_jsonparse_with_array() {
+        let mut engine = TemplateEngine::new();
+        engine.set_variable("json_string", r#"["apple", "banana", "cherry"]"#);
+
+        let template = r#"
+{% for fruit in json_string jsonparse %}
+- {{ fruit }}
+{% endfor %}"#;
+
+        let result = engine
+            .set_preserve_loop_newlines(false)
+            .render_string(template)
+            .unwrap();
+        
+        let expected = r#"
+- apple
+- banana
+- cherry"#;
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn test_jsonparse_with_object() {
+        let mut engine = TemplateEngine::new();
+        engine.set_variable("json_object", r#"{"name": "Alice", "age": 30, "city": "Beijing"}"#);
+
+        let template = r#"
+{% for item in json_object jsonparse %}
+Key: {{ item.key }}, Value: {{ item.value }}
+{% endfor %}"#;
+
+        let result = engine
+            .set_preserve_loop_newlines(false)
+            .render_string(template)
+            .unwrap();
+        
+        assert!(result.contains("Key: name, Value: Alice"));
+        assert!(result.contains("Key: age, Value: 30"));
+        assert!(result.contains("Key: city, Value: Beijing"));
+    }
+
+    #[test]
+    fn test_jsonparse_with_complex_array() {
+        let mut engine = TemplateEngine::new();
+        engine.set_variable("users_json", r#"[
+            {"name": "Alice", "age": 25},
+            {"name": "Bob", "age": 30},
+            {"name": "Charlie", "age": 35}
+        ]"#);
+
+        let template = r#"
+{% for user in users_json jsonparse %}
+- {{ user.name }} ({{ user.age }} years old)
+{% endfor %}"#;
+
+        let result = engine
+            .set_preserve_loop_newlines(false)
+            .render_string(template)
+            .unwrap();
+        
+        assert!(result.contains("- Alice (25 years old)"));
+        assert!(result.contains("- Bob (30 years old)"));
+        assert!(result.contains("- Charlie (35 years old)"));
+    }
+
+    #[test]
+    fn test_jsonparse_invalid_json() {
+        let mut engine = TemplateEngine::new();
+        engine.set_variable("invalid_json", r#"["apple", "banana", "cherry""#);
+
+        let template = r#"
+{% for fruit in invalid_json jsonparse %}
+- {{ fruit }}
+{% endfor %}"#;
+
+        let result = engine.render_string(template);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Failed to parse JSON"));
+    }
+
+    #[test]
+    fn test_jsonparse_non_string_variable() {
+        let mut engine = TemplateEngine::new();
+        engine.set_variable("already_array", json!(["apple", "banana", "cherry"]));
+
+        let template = r#"
+{% for fruit in already_array jsonparse %}
+- {{ fruit }}
+{% endfor %}"#;
+
+        let result = engine.render_string(template);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Cannot jsonparse non-string variable"));
     }
 }

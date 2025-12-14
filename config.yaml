@@ -5,7 +5,12 @@ variables:
   master_ip: "192.168.0.199"
   app_name: "myapp"
   version: "1.0.0"
-  scene_names: "scene1,scene2,scene3"
+  scene_names: |
+    [
+      {"name": "scene1", "title": "场景一"},
+      {"name": "scene2", "title": "场景二"},
+      {"name": "scene3", "title": "场景三"}
+    ]
 clients:
   mac_server:
     name: "mac_server"
@@ -17,9 +22,9 @@ clients:
       private_key_path: "/Users/li/.ssh/id_rsa"
       timeout_seconds: 1
 pipelines:
-#{% for item in scene_names split "," %}
-  - name: "#{item}"
-    title: "部署应用"
+#{% for item in scene_names jsonparse %}
+  - name: "#{item.name}"
+    title: "#{item.name}#{item.title}"
     steps:
       - name: "get_system_info"
         title: "获取系统信息"
