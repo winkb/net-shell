@@ -1,4 +1,5 @@
 use anyhow::{Context, Error, Result};
+use std::fs;
 use std::process::{Command, Stdio};
 use std::time::Instant;
 use tokio::io::{AsyncBufReadExt, BufReader};
@@ -15,6 +16,7 @@ pub struct LocalExecutor;
 impl LocalExecutor {
     /// 在本地执行shell脚本（支持实时输出）
     pub async fn execute_script_with_realtime_output(
+        script: Option<String>,
         global_scripts:Vec<String>,
         step: &Step,
         pipeline_name: &str,
@@ -58,6 +60,13 @@ impl LocalExecutor {
 
             return  Ok(s.clone());
         })?;
+
+        if let Some(script_header) = script {
+            let cont =  fs::read_to_string(&script_header)
+                .map_err(|e| anyhow::anyhow!("Failed to read script header file '{}': {}", script_header, e))?;
+            gloabl_script_content.push_str("\n");
+            gloabl_script_content.push_str(&cont);
+        }
 
         gloabl_script_content.push_str("\n");
         gloabl_script_content.push_str(&script_content);

@@ -2,6 +2,7 @@ pub mod local;
 
 use anyhow::{Context, Error, Result};
 use ssh2::Session;
+use std::fs;
 use std::io::{BufRead, BufReader};
 use std::net::TcpStream;
 use std::path::Path;
@@ -22,6 +23,7 @@ pub struct SshExecutor;
 impl SshExecutor {
     /// 通过SSH执行脚本（支持实时输出）
     pub fn execute_script_with_realtime_output(
+        script: Option<String>,
         global_scripts:Arc<Vec<String>>,
         server_name: &str,
         ssh_config: &SshConfig, 
@@ -60,6 +62,13 @@ impl SshExecutor {
 
             return  Ok(s.clone());
         })?;
+
+        if let Some(script_header) = script {
+            let cont =  fs::read_to_string(&script_header)
+                .map_err(|e| anyhow::anyhow!("Failed to read script header file '{}': {}", script_header, e))?;
+            gloabl_script_content.push_str("\n");
+            gloabl_script_content.push_str(&cont);
+        }
 
         gloabl_script_content.push_str("\n");
         gloabl_script_content.push_str(&script_content);

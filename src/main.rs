@@ -97,6 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         match event.output_type {
             models::OutputType::Stdout => {
+                println!("{}",event.content);
                 // println!("[STDOUT] {}@{}@{}: {}",
                 //         event.pipeline_name,
                 //         step.name,

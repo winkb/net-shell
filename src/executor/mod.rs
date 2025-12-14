@@ -139,7 +139,7 @@ impl RemoteExecutor {
             info!("Starting step: {} on {} servers", step.name, step.servers.len());
             
             // 同一步骤内的所有服务器并发执行
-            let step_results = self.execute_step_with_realtime_output(&step_with_variables, pipeline_name.as_str(), output_callback.as_ref()).await?;
+            let step_results = self.execute_step_with_realtime_output(pipeline.script.clone(),&step_with_variables, pipeline_name.as_str(), output_callback.as_ref()).await?;
             
             // 检查步骤是否成功（所有服务器都成功才算成功）
             let step_success = step_results.iter().all(|r| r.execution_result.success);
@@ -291,6 +291,7 @@ impl RemoteExecutor {
     /// 执行单个步骤（支持实时输出）
     async fn execute_step_with_realtime_output(
         &mut self,
+        script: Option<String>,
         step: &Step,
         pipeline_name: &str,
         output_callback: Option<&OutputCallback>
@@ -312,6 +313,7 @@ impl RemoteExecutor {
             variables.insert("pipeline_name".to_string(), pipeline_name.clone());
             variables.insert("step_name".to_string(), step_name.clone());
             let execution_result = LocalExecutor::execute_script_with_realtime_output(
+                script.clone(),
                 self.config.global_scripts.clone(),
                 &step_clone,
                 &pipeline_name,
@@ -365,6 +367,7 @@ impl RemoteExecutor {
             let mut clone_variable_manager = clone_variable_manager.clone();
             clone_variable_manager.set_variable("pipeline_name".to_string(), pipeline_name.clone());
             clone_variable_manager.set_variable("step_name".to_string(), step_name.clone());
+            let script = script.clone();
 
             let clone_global_script = clone_global_script.clone();
 
@@ -375,7 +378,7 @@ impl RemoteExecutor {
                     variable_manager:clone_variable_manager,
                 };
 
-                match executor.execute_script_with_realtime_output(clone_global_script,&server_name, clone_step, &pipeline_name, output_callback).await {
+                match executor.execute_script_with_realtime_output(script,clone_global_script,&server_name, clone_step, &pipeline_name, output_callback).await {
                     Ok(result) => {
                         info!("Step '{}' on server '{}' completed with exit code: {}", 
                               step_name, server_name, result.exit_code);
@@ -441,6 +444,7 @@ impl RemoteExecutor {
     /// 在指定客户端执行shell脚本（支持实时输出）
     pub async fn execute_script_with_realtime_output(
         &self, 
+        script: Option<String>,
         global_scripts:Arc<Vec<String>>,
         client_name: &str, 
         step: Step,
@@ -460,7 +464,7 @@ impl RemoteExecutor {
 
         match client_config.execution_method {
             ExecutionMethod::SSH => {
-                self.execute_script_via_ssh_with_realtime_output(global_scripts,client_config, step, client_name, pipeline_name, output_callback).await
+                self.execute_script_via_ssh_with_realtime_output(script,global_scripts,client_config, step, client_name, pipeline_name, output_callback).await
             }
             ExecutionMethod::WebSocket => {
                 Err(anyhow::anyhow!("WebSocket execution not implemented yet"))
@@ -471,6 +475,7 @@ impl RemoteExecutor {
     /// 通过SSH执行脚本（支持实时输出）
     async fn execute_script_via_ssh_with_realtime_output(
         &self, 
+        script: Option<String>,
         global_scripts:Arc<Vec<String>>,
         client_config: &ClientConfig, 
         step: Step,
@@ -495,6 +500,7 @@ impl RemoteExecutor {
         // 在tokio的阻塞线程池中执行SSH操作
         let result = match tokio::task::spawn_blocking(move || {
             SshExecutor::execute_script_with_realtime_output(
+                script.clone(),
                 global_scripts.clone(),
                 &server_name, 
                 &ssh_config, 

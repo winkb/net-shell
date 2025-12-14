@@ -72,6 +72,7 @@ pub struct Step {
 pub struct Pipeline {
     pub name: String,
     pub title: Option<String>,
+    pub script: Option<String>,
     pub steps: Vec<Step>,
 }
 

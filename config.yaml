@@ -25,6 +25,7 @@ pipelines:
 #{% for item in scene_names jsonparse %}
   - name: "#{item.name}"
     title: "#{item.name}#{item.title}"
+    script: "{{ script_dir }}/#{item.name}.sh"
     steps:
       - name: "get_system_info"
         title: "获取系统信息"
